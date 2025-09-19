@@ -1,0 +1,35 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "api/index.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/index.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/public/$1"
+    },
+    {
+      "src": "/auth/discord",
+      "dest": "/api/index.js"
+    },
+    {
+      "src": "/auth/discord/callback",
+      "dest": "/api/index.js"
+    },
+    {
+      "src": "/get-user",
+      "dest": "/api/index.js"
+    },
+    {
+      "src": "/logout",
+      "dest": "/api/index.js"
+    }
+  ]
+}
