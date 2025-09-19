@@ -1,19 +1,19 @@
 {
   "name": "discord-login-site",
   "version": "1.0.0",
-  "description": "",
+  "description": "A website using Discord OAuth for login with a responsive dashboard",
   "main": "server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node server.js"
   },
   "keywords": [],
-  "author": "",
+  "author": "YourName",
   "license": "ISC",
   "dependencies": {
-    "axios": "^1.12.2",
+    "axios": "^1.6.0",
     "dotenv": "^17.2.2",
-    "express": "^5.1.0",
+    "express": "^4.18.2",
     "express-session": "^1.18.2"
   }
 }
