@@ -9,27 +9,27 @@
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "/public/$1"
+      "dest": "api/index.js"
     },
     {
       "src": "/api/(.*)",
-      "dest": "/api/index.js"
+      "dest": "api/index.js"
     },
     {
       "src": "/auth/discord",
-      "dest": "/api/index.js"
+      "dest": "api/index.js"
     },
     {
       "src": "/auth/discord/callback",
-      "dest": "/api/index.js"
+      "dest": "api/index.js"
     },
     {
       "src": "/get-user",
-      "dest": "/api/index.js"
+      "dest": "api/index.js"
     },
     {
       "src": "/logout",
-      "dest": "/api/index.js"
+      "dest": "api/index.js"
     }
   ]
 }
