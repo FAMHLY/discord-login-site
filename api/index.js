@@ -27,9 +27,10 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
 });
 
-// Redirect to Supabase Discord auth
 app.get('/auth/discord', (req, res) => {
-  const redirectUrl = `https://${process.env.SUPABASE_URL}/auth/v1/authorize?provider=discord&redirect_to=${encodeURIComponent('https://discord-login-site.vercel.app/dashboard.html')}`;
+  const baseUrl = process.env.SUPABASE_URL; // Already includes https://
+  const redirectTo = encodeURIComponent('https://discord-login-site.vercel.app/dashboard.html');
+  const redirectUrl = `${baseUrl}/auth/v1/authorize?provider=discord&redirect_to=${redirectTo}`;
   res.redirect(redirectUrl);
 });
 
