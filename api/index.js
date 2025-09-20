@@ -1,95 +1,84 @@
 const express = require('express');
-const session = require('express-session');
+const session = require('express-session'); // Optional fallback
 const axios = require('axios');
 require('dotenv').config();
 const path = require('path');
-const MemoryStore = require('memorystore')(session);
+const { createServerClient } = require('@supabase/ssr');
+const cookieParser = require('cookie-parser');
 
 const app = express();
 
-// Configure session middleware with MemoryStore
-app.use(session({
-  secret: process.env.SESSION_SECRET,
-  resave: false,
-  saveUninitialized: false,
-  store: new MemoryStore({
-    checkPeriod: 86400000 // prune expired entries every 24h
-  }),
-  cookie: { secure: process.env.NODE_ENV === 'production' }
-}));
+// Add cookie-parser for Supabase cookies
+app.use(cookieParser());
 
-// Serve static files from the root public folder
+// Supabase server client
+const supabase = createServerClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_ANON_KEY,
+  {
+    cookies: {
+      get: (name) => req.cookies[name],
+      set: (name, value, options) => res.cookie(name, value, options),
+      remove: (name, options) => res.clearCookie(name, options),
+    },
+  }
+);
+
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
-// Explicit route for root to serve index.html from the root public folder
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
 });
 
+// Redirect to Supabase Discord auth
 app.get('/auth/discord', (req, res) => {
-  const authUrl = `https://discord.com/api/oauth2/authorize?client_id=${process.env.DISCORD_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.DISCORD_REDIRECT_URI)}&response_type=code&scope=identify`;
-  res.redirect(authUrl);
+  const redirectUrl = `https://${process.env.SUPABASE_URL}/auth/v1/authorize?provider=discord&redirect_to=${encodeURIComponent('https://discord-login-site.vercel.app/dashboard.html')}`;
+  res.redirect(redirectUrl);
 });
 
-app.get('/auth/discord/callback', async (req, res) => {
-  const code = req.query.code;
-  console.log('Callback received with code:', code ? 'present' : 'missing');
-  if (!code) {
-    console.error('No code provided in query');
-    return res.send('No code provided');
-  }
+// Handle post-authentication (optional refresh or data sync)
+app.get('/dashboard.html', async (req, res, next) => {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) return res.redirect('/');
 
-  try {
-    console.log('Exchanging code for token...');
-    const tokenResponse = await axios.post('https://discord.com/api/oauth2/token', new URLSearchParams({
-      client_id: process.env.DISCORD_CLIENT_ID,
-      client_secret: process.env.DISCORD_CLIENT_SECRET,
-      grant_type: 'authorization_code',
-      code,
-      redirect_uri: process.env.DISCORD_REDIRECT_URI,
-    }), {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+  // Optionally sync Discord user data
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user) {
+    const discordResponse = await axios.get('https://discord.com/api/users/@me', {
+      headers: { Authorization: `Bearer ${session.provider_token}` },
     });
-    console.log('Token response status:', tokenResponse.status);
-    console.log('Token response data:', tokenResponse.data);
-
-    const { access_token } = tokenResponse.data;
-    if (!access_token) {
-      throw new Error('No access_token in response');
-    }
-
-    console.log('Fetching user info...');
-    const userResponse = await axios.get('https://discord.com/api/users/@me', {
-      headers: { Authorization: `Bearer ${access_token}` },
-    });
-    console.log('User response status:', userResponse.status);
-    console.log('User response data:', userResponse.data);
-
-    const user = userResponse.data;
+    const discordUser = discordResponse.data;
     req.session.user = {
-      username: `${user.username}#${user.discriminator}`,
-      avatar: `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=128`,
+      username: `${discordUser.username}#${discordUser.discriminator}`,
+      avatar: `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png?size=128`,
     };
-    console.log('User session set:', req.session.user.username);
 
-    res.redirect('/dashboard.html');
-  } catch (error) {
-    console.error('Detailed error during login:', error.message);
-    if (error.response) {
-      console.error('Error response status:', error.response.status);
-      console.error('Error response data:', error.response.data);
-    } else if (error.request) {
-      console.error('No response received:', error.request);
-    }
-    res.send('Error during login');
+    // Store in Supabase DB (create 'users' table if not exists)
+    await supabase.from('users').upsert({
+      id: user.id,
+      discord_id: discordUser.id,
+      username: `${discordUser.username}#${discordUser.discriminator}`,
+      avatar: `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png?size=128`,
+    }, { onConflict: 'id' });
+  }
+
+  next();
+});
+
+app.get('/get-user', async (req, res) => {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session && session.user) {
+    res.json({
+      username: req.session.user?.username || `${session.user.user_metadata?.username}#${session.user.user_metadata?.discriminator}`,
+      avatar: req.session.user?.avatar || `https://cdn.discordapp.com/avatars/${session.user.user_metadata?.sub}/${session.user.user_metadata?.picture}.png?size=128`,
+    });
+  } else {
+    res.json(null);
   }
 });
 
-app.get('/get-user', (req, res) => {
-  res.json(req.session.user || null);
-});
-
-app.get('/logout', (req, res) => {
+app.get('/logout', async (req, res) => {
+  await supabase.auth.signOut();
   req.session.destroy();
   res.redirect('/');
 });
