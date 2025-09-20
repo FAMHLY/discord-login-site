@@ -2,19 +2,17 @@ const express = require('express');
 const session = require('express-session');
 const axios = require('axios');
 require('dotenv').config();
+const path = require('path');
 
 const app = express();
 
-app.use(session({
-  secret: process.env.SESSION_SECRET,
-  resave: false,
-  saveUninitialized: true,
-  cookie: { secure: process.env.NODE_ENV === 'production' }
-}));
+// Serve static files from the public folder
+app.use(express.static(path.join(__dirname, 'public')));
 
-app.use(express.static('public'));
-
-app.get('/', (req, res) => res.sendFile(__dirname + '/public/index.html'));
+// Explicit route for root to serve index.html
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 app.get('/auth/discord', (req, res) => {
   const authUrl = `https://discord.com/api/oauth2/authorize?client_id=${process.env.DISCORD_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.DISCORD_REDIRECT_URI)}&response_type=code&scope=identify`;
