@@ -6,12 +6,12 @@ const path = require('path');
 
 const app = express();
 
-// Serve static files from the public folder
-app.use(express.static(path.join(__dirname, 'public')));
+// Serve static files from the root public folder
+app.use(express.static(path.join(__dirname, '..', 'public')));
 
-// Explicit route for root to serve index.html
+// Explicit route for root to serve index.html from the root public folder
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
 });
 
 app.get('/auth/discord', (req, res) => {
