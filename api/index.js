@@ -91,9 +91,13 @@ app.get('/get-user', async (req, res) => {
   const { data: { session } } = await supabase.auth.getSession();
   if (session && session.user) {
     const { data: { user } } = await supabase.auth.getUser();
+    const discordResponse = await axios.get('https://discord.com/api/users/@me', {
+      headers: { Authorization: `Bearer ${session.provider_token}` },
+    });
+    const discordUser = discordResponse.data;
     res.json({
-      username: req.session.user?.username || `${user.user_metadata?.username}#${user.user_metadata?.discriminator}`,
-      avatar: req.session.user?.avatar || `https://cdn.discordapp.com/avatars/${user.user_metadata?.sub}/${user.user_metadata?.picture}.png?size=128`,
+      username: `${discordUser.username}#${discordUser.discriminator}`,
+      avatar: `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png?size=128`,
     });
   } else {
     res.json(null);
