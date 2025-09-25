@@ -192,6 +192,7 @@ async function loadServers() {
             name: server.server_name,
             icon: server.server_icon,
             server_icon: server.server_icon,
+            user_role: server.user_role,
             owner: true,
             permissions: 0,
             invite_code: server.invite_code,
@@ -247,7 +248,7 @@ function createServerCard(server) {
              alt="${server.name}" class="server-icon">
         <div class="server-info">
           <h4>${server.name}</h4>
-          <p>Server Owner</p>
+          <p>${server.user_role || 'Member'}</p>
         </div>
       </div>
       

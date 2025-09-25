@@ -27,6 +27,51 @@ async function getDiscordGuilds() {
     }
 }
 
+async function getUserDiscordRole(guildId, userId) {
+    try {
+        console.log(`Fetching Discord role for user ${userId} in guild ${guildId}...`);
+        const response = await axios.get(`https://discord.com/api/guilds/${guildId}/members/${userId}`, {
+            headers: {
+                'Authorization': `Bot ${process.env.DISCORD_BOT_TOKEN}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const member = response.data;
+        console.log('Member data:', { userId, guildId, roles: member.roles });
+        
+        // Get guild roles to determine hierarchy
+        const guildResponse = await axios.get(`https://discord.com/api/guilds/${guildId}/roles`, {
+            headers: {
+                'Authorization': `Bot ${process.env.DISCORD_BOT_TOKEN}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const guildRoles = guildResponse.data;
+        console.log('Guild roles:', guildRoles.map(r => ({ id: r.id, name: r.name, position: r.position })));
+        
+        // Find the highest role (excluding @everyone)
+        const userRoles = member.roles.filter(roleId => roleId !== guildId); // Remove @everyone role
+        const userRoleObjects = guildRoles.filter(role => userRoles.includes(role.id));
+        
+        if (userRoleObjects.length === 0) {
+            return 'Member';
+        }
+        
+        // Sort by position (highest first) and get the top role
+        const highestRole = userRoleObjects.sort((a, b) => b.position - a.position)[0];
+        console.log('Highest role:', highestRole.name);
+        
+        return highestRole.name;
+        
+    } catch (error) {
+        console.error('Error fetching user Discord role:', error.response?.data || error.message);
+        // Return default role if we can't fetch it
+        return 'Member';
+    }
+}
+
 async function getDiscordGuild(guildId) {
     try {
         console.log('Fetching Discord guild with ID:', guildId);
@@ -838,6 +883,13 @@ app.post('/api/servers/:serverId/configure', async (req, res) => {
           actualServerName = targetGuild.name;
           console.log('Using Discord server name:', actualServerName);
           
+          // Get user's Discord role in this server
+          const userDiscordId = user.user_metadata?.provider_id;
+          if (userDiscordId) {
+            const userRole = await getUserDiscordRole(serverId, userDiscordId);
+            console.log('User Discord role:', userRole);
+          }
+          
           // Get channels for the guild
           const channels = await getDiscordChannels(serverId);
           const textChannels = channels.filter(ch => ch.type === 0);
@@ -883,6 +935,17 @@ app.post('/api/servers/:serverId/configure', async (req, res) => {
       console.log('Server icon URL:', serverIconUrl);
     }
     
+    // Get user's Discord role if available
+    let userRole = 'Member'; // Default fallback
+    if (targetGuild && user.user_metadata?.provider_id) {
+      try {
+        userRole = await getUserDiscordRole(serverId, user.user_metadata.provider_id);
+        console.log('Storing user role:', userRole);
+      } catch (error) {
+        console.log('Could not fetch user role, using default:', userRole);
+      }
+    }
+    
     const { data, error } = await supabase
       .from('discord_servers')
       .upsert({
@@ -890,6 +953,7 @@ app.post('/api/servers/:serverId/configure', async (req, res) => {
         discord_server_id: serverId,
         server_name: actualServerName,
         server_icon: serverIconUrl,
+        user_role: userRole,
         invite_code: inviteCode,
         owner_discord_id: user.user_metadata?.provider_id,
         updated_at: new Date().toISOString()
