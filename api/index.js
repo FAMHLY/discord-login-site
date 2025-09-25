@@ -10,6 +10,23 @@ const crypto = require('crypto');
 const app = express();
 
 // Discord REST API functions for serverless environment
+async function getDiscordGuilds() {
+    try {
+        console.log('Fetching all Discord guilds for bot...');
+        const response = await axios.get('https://discord.com/api/users/@me/guilds', {
+            headers: {
+                'Authorization': `Bot ${process.env.DISCORD_BOT_TOKEN}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        console.log('Bot can see', response.data.length, 'guilds');
+        return response.data;
+    } catch (error) {
+        console.error('Error fetching Discord guilds:', error.response?.data || error.message);
+        return [];
+    }
+}
+
 async function getDiscordGuild(guildId) {
     try {
         console.log('Fetching Discord guild with ID:', guildId);
@@ -855,8 +872,8 @@ app.delete('/api/servers/:serverId', async (req, res) => {
     }
   );
 
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError || !user) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
 
@@ -933,6 +950,24 @@ app.post('/api/servers/:serverId/invite', async (req, res) => {
       });
     }
 
+    // First, let's see what guilds the bot can access
+    const availableGuilds = await getDiscordGuilds();
+    console.log('Available guilds:', availableGuilds.map(g => ({ id: g.id, name: g.name })));
+    
+    // Check if the requested server is in the list
+    const targetGuild = availableGuilds.find(g => g.id === serverId);
+    if (!targetGuild) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Server not found or bot not in server. Please add the bot to your Discord server.',
+        details: 'Make sure the bot is added to your server with proper permissions.',
+        serverId: serverId,
+        availableGuilds: availableGuilds.map(g => ({ id: g.id, name: g.name }))
+      });
+    }
+    
+    console.log('Target guild found:', targetGuild.name, targetGuild.id);
+    
     // Get Discord guild information
     console.log('Attempting to fetch Discord guild with ID:', serverId);
     const guild = await getDiscordGuild(serverId);
