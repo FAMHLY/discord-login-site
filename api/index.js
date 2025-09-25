@@ -137,8 +137,8 @@ app.get('/auth/discord', async (req, res) => {
   let redirectTo;
   
   // Use Supabase callback URL - Supabase will handle the OAuth and redirect to our site
-  redirectTo = encodeURIComponent('https://discord-login-site.vercel.app/auth/callback');
-  console.log('Using Supabase callback flow with callback redirect');
+  redirectTo = encodeURIComponent('https://discord-login-site.vercel.app/dashboard.html');
+  console.log('Using Supabase callback flow with dashboard redirect');
   
   // Original logic (commented out for testing)
   /*
@@ -164,8 +164,8 @@ app.get('/auth/discord', async (req, res) => {
   console.log('Decoded redirect_to:', decodeURIComponent(redirectTo));
   console.log('Supabase base URL:', baseUrl);
   console.log('Expected callback URL:', decodeURIComponent(redirectTo));
-  console.log('=== IMPORTANT: Discord OAuth redirect should be your site callback ===');
-  console.log('Discord OAuth redirect URL should be:', 'https://discord-login-site.vercel.app/auth/callback');
+  console.log('=== IMPORTANT: Discord OAuth redirect should be Supabase callback ===');
+  console.log('Discord OAuth redirect URL should be:', `${baseUrl}/auth/v1/callback`);
   
   // Also try to get current Supabase auth settings
   console.log('Environment variables check:', {
