@@ -687,17 +687,16 @@ app.get('/api/servers', async (req, res) => {
     }
   );
 
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError || !user) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
 
   try {
-    console.log('Session provider token exists:', !!session.provider_token);
-    console.log('Session user ID:', user.id);
+    console.log('User authenticated successfully');
     
-    // Get user data to extract Discord ID
-    const { data: { user } } = await supabase.auth.getUser();
+    // Get Discord ID from user metadata
+    console.log('Session user ID:', user?.id);
     const discordUserId = user?.user_metadata?.provider_id;
     
     console.log('Discord user ID from metadata:', discordUserId);
