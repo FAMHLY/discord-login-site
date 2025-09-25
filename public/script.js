@@ -163,8 +163,48 @@ async function loadServers() {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
     
-    const servers = await response.json();
-    console.log('Loaded servers:', servers);
+    const responseData = await response.json();
+    console.log('Loaded servers response:', responseData);
+    
+    // Check if this is the new response format with setup_required
+    if (responseData.setup_required) {
+      serversList.innerHTML = `
+        <div class="error">
+          <h4>Discord OAuth Setup Required</h4>
+          <p>To automatically fetch your Discord servers, we need to configure additional OAuth permissions.</p>
+          <p><strong>Discord User ID:</strong> ${responseData.discord_user_id}</p>
+          <p>For now, you can manually add your Discord server by providing the server ID.</p>
+          <div style="margin-top: 15px;">
+            <input type="text" id="manual-server-id" placeholder="Enter your Discord Server ID" style="padding: 10px; margin-right: 10px; border-radius: 5px; border: 1px solid #ccc;">
+            <button class="btn btn-primary" onclick="addManualServer()">Add Server</button>
+          </div>
+        </div>
+      `;
+      
+      // Show configured servers if any
+      if (responseData.configured_servers && responseData.configured_servers.length > 0) {
+        const configuredSection = document.createElement('div');
+        configuredSection.innerHTML = `
+          <h4>Your Configured Servers</h4>
+          ${responseData.configured_servers.map(server => createServerCard({
+            id: server.discord_server_id,
+            name: server.server_name,
+            icon: null,
+            owner: true,
+            permissions: 0,
+            invite_code: server.invite_code,
+            is_configured: true,
+            created_at: server.created_at
+          })).join('')}
+        `;
+        serversList.appendChild(configuredSection);
+      }
+      
+      return;
+    }
+    
+    // Handle normal server list response
+    const servers = Array.isArray(responseData) ? responseData : [];
     
     if (servers.length === 0) {
       serversList.innerHTML = '<div class="error">No Discord servers found. Make sure you have admin permissions on at least one server.</div>';
@@ -363,6 +403,25 @@ function copyInvite(serverId) {
     console.error('Failed to copy invite link:', err);
     showMessage('Failed to copy invite link.', 'error');
   });
+}
+
+function addManualServer() {
+  const serverIdInput = document.getElementById('manual-server-id');
+  const serverId = serverIdInput.value.trim();
+  
+  if (!serverId) {
+    showMessage('Please enter a Discord Server ID', 'error');
+    return;
+  }
+  
+  // Validate server ID format (Discord server IDs are 17-19 digit numbers)
+  if (!/^\d{17,19}$/.test(serverId)) {
+    showMessage('Invalid Discord Server ID format. Server IDs are 17-19 digit numbers.', 'error');
+    return;
+  }
+  
+  // Configure the server
+  configureServer(serverId, 'Manual Server');
 }
 
 function showMessage(message, type) {

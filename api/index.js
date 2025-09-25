@@ -633,21 +633,21 @@ app.get('/api/servers', async (req, res) => {
     console.log('Session provider token exists:', !!session.provider_token);
     console.log('Session user ID:', session.user.id);
     
-    if (!session.provider_token) {
-      console.error('No provider token available for Discord API call');
-      return res.status(400).json({ error: 'No Discord access token available. Please re-authenticate.' });
+    // Get user data to extract Discord ID
+    const { data: { user } } = await supabase.auth.getUser();
+    const discordUserId = user?.user_metadata?.provider_id;
+    
+    console.log('Discord user ID from metadata:', discordUserId);
+    
+    if (!discordUserId) {
+      console.error('No Discord user ID found in user metadata');
+      return res.status(400).json({ error: 'Discord user ID not found. Please re-authenticate with Discord.' });
     }
 
-    // Get user's Discord servers via Discord API
-    console.log('Making Discord API call to fetch guilds...');
-    const discordResponse = await axios.get('https://discord.com/api/users/@me/guilds', {
-      headers: { Authorization: `Bearer ${session.provider_token}` },
-    });
-
-    const discordServers = discordResponse.data;
-    console.log('Discord servers fetched:', discordServers.length);
-    console.log('Discord servers data:', discordServers);
-
+    // For now, return a placeholder response since we can't fetch Discord servers without the provider token
+    // This is a limitation of the current Supabase Discord OAuth setup
+    console.log('Discord provider token not available - returning placeholder response');
+    
     // Get servers from our database
     console.log('Querying database for configured servers...');
     const { data: dbServers, error } = await supabase
@@ -662,31 +662,18 @@ app.get('/api/servers', async (req, res) => {
 
     console.log('Database servers found:', dbServers?.length || 0);
 
-    // Merge Discord API data with our database data
-    const servers = discordServers.map(server => {
-      const dbServer = dbServers.find(db => db.discord_server_id === server.id);
-      return {
-        id: server.id,
-        name: server.name,
-        icon: server.icon ? `https://cdn.discordapp.com/icons/${server.id}/${server.icon}.png` : null,
-        owner: server.owner,
-        permissions: server.permissions,
-        invite_code: dbServer?.invite_code || null,
-        is_configured: !!dbServer,
-        created_at: dbServer?.created_at || null
-      };
+    // Return a message explaining the limitation
+    res.json({
+      message: 'Discord server fetching requires additional OAuth setup. Please configure your Discord servers manually.',
+      discord_user_id: discordUserId,
+      configured_servers: dbServers || [],
+      setup_required: true
     });
-
-    console.log('Returning merged servers data:', servers.length);
-    res.json(servers);
+    
   } catch (error) {
     console.error('Error fetching servers:', error);
     console.error('Error response:', error.response?.data);
     console.error('Error status:', error.response?.status);
-    
-    if (error.response?.status === 401) {
-      return res.status(401).json({ error: 'Discord token expired. Please re-authenticate.' });
-    }
     
     res.status(500).json({ 
       error: 'Failed to fetch servers', 
