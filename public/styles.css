@@ -319,13 +319,11 @@ header {
   background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(10px);
   border-radius: 16px;
-  padding: 24px;
+  padding: 20px;
   border: 1px solid rgba(255, 255, 255, 0.2);
   transition: all 0.3s ease;
   display: flex;
   flex-direction: column;
-  height: 100%;
-  min-height: 200px;
 }
 
 .server-card:hover {
@@ -336,14 +334,14 @@ header {
 .server-header {
   display: flex;
   align-items: center;
-  gap: 16px;
-  margin-bottom: 16px;
+  gap: 12px;
+  margin-bottom: 12px;
   flex-shrink: 0;
 }
 
 .server-icon {
-  width: 48px;
-  height: 48px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, 0.3);
   flex-shrink: 0;
@@ -372,11 +370,11 @@ header {
 
 .server-status {
   display: inline-block;
-  padding: 6px 12px;
-  border-radius: 20px;
-  font-size: 0.75rem;
+  padding: 4px 10px;
+  border-radius: 16px;
+  font-size: 0.7rem;
   font-weight: 600;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -396,19 +394,18 @@ header {
 .server-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-top: auto;
+  gap: 10px;
   flex-shrink: 0;
 }
 
 .server-actions .btn {
-  padding: 10px 16px;
-  font-size: 0.85rem;
+  padding: 8px 12px;
+  font-size: 0.8rem;
   font-weight: 600;
-  border-radius: 8px;
+  border-radius: 6px;
   text-align: center;
   transition: all 0.2s ease;
-  min-height: 40px;
+  min-height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -434,25 +431,23 @@ header {
   background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(10px);
   border-radius: 16px;
-  padding: 24px;
+  padding: 20px;
   border: 1px solid rgba(255, 255, 255, 0.2);
   display: flex;
   flex-direction: column;
-  height: 100%;
-  min-height: 200px;
 }
 
 .invite-header {
   display: flex;
   align-items: center;
-  gap: 16px;
-  margin-bottom: 16px;
+  gap: 12px;
+  margin-bottom: 12px;
   flex-shrink: 0;
 }
 
 .invite-icon {
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, 0.3);
   flex-shrink: 0;
@@ -483,31 +478,30 @@ header {
   background: rgba(0, 0, 0, 0.2);
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 8px;
-  padding: 12px;
-  margin: 16px 0;
+  padding: 10px;
+  margin: 12px 0;
   word-break: break-all;
   font-family: monospace;
   color: #43b581;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   flex-shrink: 0;
 }
 
 .invite-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-top: auto;
+  gap: 10px;
   flex-shrink: 0;
 }
 
 .invite-actions .btn {
-  padding: 10px 16px;
-  font-size: 0.85rem;
+  padding: 8px 12px;
+  font-size: 0.8rem;
   font-weight: 600;
-  border-radius: 8px;
+  border-radius: 6px;
   text-align: center;
   transition: all 0.2s ease;
-  min-height: 40px;
+  min-height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -563,8 +557,7 @@ header {
   }
   
   .server-card, .invite-card {
-    min-height: 180px;
-    padding: 20px;
+    padding: 16px;
   }
   
   .btn {
