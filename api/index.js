@@ -32,6 +32,27 @@ app.get('/dashboard.html', async (req, res, next) => {
     return res.redirect('/auth/callback' + req.url.substring(req.url.indexOf('?')));
   }
   
+  // Check if we have a session, if not redirect to login
+  const supabase = createServerClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_ANON_KEY,
+    {
+      cookies: {
+        get: (name) => req.cookies[name],
+        set: (name, value, options) => res.cookie(name, value, options),
+        remove: (name, options) => res.clearCookie(name, options),
+      },
+    }
+  );
+
+  const { data: { session } } = await supabase.auth.getSession();
+  console.log('Dashboard session check:', !!session);
+  
+  if (!session) {
+    console.log('No session in dashboard, redirecting to login');
+    return res.redirect('/');
+  }
+  
   // Continue to the existing dashboard handler
   next();
 });
@@ -439,8 +460,31 @@ app.get('/get-user', async (req, res) => {
           console.log(`Getting cookie ${name}:`, value ? 'exists' : 'missing');
           return value;
         },
-        set: (name, value, options) => res.cookie(name, value, options),
-        remove: (name, options) => res.clearCookie(name, options),
+        set: (name, value, options) => {
+          console.log(`Setting cookie ${name}:`, 'exists');
+          // Ensure cookies are set with proper domain and path for Vercel
+          const cookieOptions = {
+            ...options,
+            // Don't set domain for Vercel - let it use the default
+            path: '/',
+            secure: true,
+            httpOnly: true,
+            sameSite: 'lax'
+          };
+          res.cookie(name, value, cookieOptions);
+        },
+        remove: (name, options) => {
+          console.log(`Removing cookie ${name}`);
+          const cookieOptions = {
+            ...options,
+            // Don't set domain for Vercel - let it use the default
+            path: '/',
+            secure: true,
+            httpOnly: true,
+            sameSite: 'lax'
+          };
+          res.clearCookie(name, cookieOptions);
+        },
       },
     }
   );
