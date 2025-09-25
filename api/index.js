@@ -194,9 +194,9 @@ app.get('/auth/discord', async (req, res) => {
   // Force use of the actual Vercel domain
   let redirectTo;
   
-  // Use Supabase callback URL - Supabase will handle the OAuth and redirect to our site
-  redirectTo = encodeURIComponent('https://discord-login-site.vercel.app/dashboard.html');
-  console.log('Using Supabase callback flow with dashboard redirect');
+  // Use a callback URL that we can handle ourselves
+  redirectTo = encodeURIComponent('https://discord-login-site.vercel.app/auth/callback');
+  console.log('Using custom callback flow');
   
   // Original logic (commented out for testing)
   /*
@@ -222,8 +222,8 @@ app.get('/auth/discord', async (req, res) => {
   console.log('Decoded redirect_to:', decodeURIComponent(redirectTo));
   console.log('Supabase base URL:', baseUrl);
   console.log('Expected callback URL:', decodeURIComponent(redirectTo));
-  console.log('=== IMPORTANT: Discord OAuth redirect should be Supabase callback ===');
-  console.log('Discord OAuth redirect URL should be:', `${baseUrl}/auth/v1/callback`);
+  console.log('=== IMPORTANT: Discord OAuth redirect should be your site callback ===');
+  console.log('Discord OAuth redirect URL should be:', 'https://discord-login-site.vercel.app/auth/callback');
   
   // Also try to get current Supabase auth settings
   console.log('Environment variables check:', {
@@ -293,7 +293,7 @@ app.get('/auth/callback', async (req, res) => {
   );
 
   try {
-    // Exchange the authorization code for a session
+    // Handle different OAuth response types
     if (req.query.code) {
       console.log('OAuth code found, exchanging for session');
       const { data, error } = await supabase.auth.exchangeCodeForSession(req.query.code);
@@ -310,6 +310,22 @@ app.get('/auth/callback', async (req, res) => {
           hasProviderToken: !!data.session.provider_token
         });
       }
+    } else if (req.query.access_token) {
+      console.log('Access token found, setting session');
+      // Handle implicit flow with access token
+      const { data, error } = await supabase.auth.setSession({
+        access_token: req.query.access_token,
+        refresh_token: req.query.refresh_token || ''
+      });
+      console.log('Session set result:', { data, error });
+      
+      if (error) {
+        console.error('Error setting session:', error);
+        return res.redirect('/?error=session_error');
+      }
+    } else {
+      console.log('No OAuth parameters found in callback');
+      return res.redirect('/?error=no_oauth_params');
     }
     
     // Get the session to verify it was created
