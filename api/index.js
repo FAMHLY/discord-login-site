@@ -38,15 +38,26 @@ app.get('/dashboard.html', async (req, res, next) => {
     process.env.SUPABASE_ANON_KEY,
     {
       cookies: {
-        get: (name) => req.cookies[name],
-        set: (name, value, options) => res.cookie(name, value, options),
-        remove: (name, options) => res.clearCookie(name, options),
+        get: (name) => {
+          const value = req.cookies[name];
+          console.log(`Dashboard getting cookie ${name}:`, value ? 'exists' : 'missing');
+          return value;
+        },
+        set: (name, value, options) => {
+          console.log(`Dashboard setting cookie ${name}:`, 'exists');
+          res.cookie(name, value, options);
+        },
+        remove: (name, options) => {
+          console.log(`Dashboard removing cookie ${name}`);
+          res.clearCookie(name, options);
+        },
       },
     }
   );
 
   const { data: { session } } = await supabase.auth.getSession();
   console.log('Dashboard session check:', !!session);
+  console.log('Dashboard cookies:', Object.keys(req.cookies));
   
   if (!session) {
     console.log('No session in dashboard, redirecting to login');
@@ -194,9 +205,9 @@ app.get('/auth/discord', async (req, res) => {
   // Force use of the actual Vercel domain
   let redirectTo;
   
-  // Use a callback URL that we can handle ourselves
-  redirectTo = encodeURIComponent('https://discord-login-site.vercel.app/auth/callback');
-  console.log('Using custom callback flow');
+  // Use Supabase callback URL - Supabase will handle the OAuth and redirect to our site
+  redirectTo = encodeURIComponent('https://discord-login-site.vercel.app/dashboard.html');
+  console.log('Using Supabase callback flow with dashboard redirect');
   
   // Original logic (commented out for testing)
   /*
@@ -222,8 +233,8 @@ app.get('/auth/discord', async (req, res) => {
   console.log('Decoded redirect_to:', decodeURIComponent(redirectTo));
   console.log('Supabase base URL:', baseUrl);
   console.log('Expected callback URL:', decodeURIComponent(redirectTo));
-  console.log('=== IMPORTANT: Discord OAuth redirect should be your site callback ===');
-  console.log('Discord OAuth redirect URL should be:', 'https://discord-login-site.vercel.app/auth/callback');
+  console.log('=== IMPORTANT: Discord OAuth redirect should be Supabase callback ===');
+  console.log('Discord OAuth redirect URL should be:', `${baseUrl}/auth/v1/callback`);
   
   // Also try to get current Supabase auth settings
   console.log('Environment variables check:', {
@@ -515,28 +526,11 @@ app.get('/get-user', async (req, res) => {
         },
         set: (name, value, options) => {
           console.log(`Setting cookie ${name}:`, 'exists');
-          // Ensure cookies are set with proper domain and path for Vercel
-          const cookieOptions = {
-            ...options,
-            // Don't set domain for Vercel - let it use the default
-            path: '/',
-            secure: true,
-            httpOnly: true,
-            sameSite: 'lax'
-          };
-          res.cookie(name, value, cookieOptions);
+          res.cookie(name, value, options);
         },
         remove: (name, options) => {
           console.log(`Removing cookie ${name}`);
-          const cookieOptions = {
-            ...options,
-            // Don't set domain for Vercel - let it use the default
-            path: '/',
-            secure: true,
-            httpOnly: true,
-            sameSite: 'lax'
-          };
-          res.clearCookie(name, cookieOptions);
+          res.clearCookie(name, options);
         },
       },
     }
