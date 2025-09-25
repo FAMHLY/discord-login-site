@@ -1,3 +1,6 @@
+// Load environment variables
+require('dotenv').config();
+
 const { Client, GatewayIntentBits, PermissionFlagsBits } = require('discord.js');
 const express = require('express');
 const cors = require('cors');
@@ -5,9 +8,7 @@ const cors = require('cors');
 // Create Discord client
 const client = new Client({
     intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent
+        GatewayIntentBits.Guilds
     ]
 });
 
@@ -18,10 +19,7 @@ app.use(cors());
 
 // Bot configuration
 const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
-const PORT = process.env.PORT || 3001;
-
-// Store server configurations
-const serverConfigs = new Map();
+const PORT = process.env.PORT || 3000;
 
 // Bot ready event
 client.once('ready', () => {

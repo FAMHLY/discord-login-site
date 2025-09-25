@@ -11,5 +11,8 @@
       "src": "/(.*)",
       "dest": "discord-bot.js"
     }
-  ]
+  ],
+  "env": {
+    "DISCORD_BOT_TOKEN": "@discord_bot_token"
+  }
 }
