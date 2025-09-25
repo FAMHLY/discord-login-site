@@ -499,11 +499,22 @@ async function removeServer(serverId) {
 
 function addServerActionListeners() {
   const serversList = document.getElementById('servers-list');
-  if (!serversList) return;
+  if (!serversList) {
+    console.error('servers-list element not found');
+    return;
+  }
+  
+  console.log('Adding server action listeners to:', serversList);
   
   serversList.addEventListener('click', (e) => {
+    console.log('Click detected on:', e.target);
     const button = e.target.closest('[data-action]');
-    if (!button) return;
+    console.log('Closest button with data-action:', button);
+    
+    if (!button) {
+      console.log('No button with data-action found');
+      return;
+    }
     
     const action = button.dataset.action;
     const serverId = button.dataset.serverId;
@@ -524,17 +535,30 @@ function addServerActionListeners() {
       case 'remove':
         removeServer(serverId);
         break;
+      default:
+        console.log('Unknown action:', action);
     }
   });
 }
 
 function addInviteActionListeners() {
   const inviteLinks = document.getElementById('invite-links');
-  if (!inviteLinks) return;
+  if (!inviteLinks) {
+    console.error('invite-links element not found');
+    return;
+  }
+  
+  console.log('Adding invite action listeners to:', inviteLinks);
   
   inviteLinks.addEventListener('click', (e) => {
+    console.log('Invite click detected on:', e.target);
     const button = e.target.closest('[data-action]');
-    if (!button) return;
+    console.log('Closest button with data-action:', button);
+    
+    if (!button) {
+      console.log('No button with data-action found');
+      return;
+    }
     
     const action = button.dataset.action;
     const serverId = button.dataset.serverId;
@@ -548,6 +572,8 @@ function addInviteActionListeners() {
       case 'copy-invite':
         copyInvite(serverId);
         break;
+      default:
+        console.log('Unknown invite action:', action);
     }
   });
 }
