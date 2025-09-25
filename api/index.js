@@ -21,6 +21,23 @@ if (process.env.SESSION_SECRET) {
   }));
 }
 
+// Handle dashboard.html route specifically (before static file serving)
+app.get('/dashboard.html', async (req, res, next) => {
+  console.log('=== /dashboard.html route hit ===');
+  console.log('Dashboard URL:', req.url);
+  console.log('Dashboard query params:', req.query);
+  console.log('Dashboard cookies:', req.cookies);
+  
+  // Check if this is an OAuth callback (has access_token in query or hash)
+  if (req.query.access_token || req.url.includes('access_token')) {
+    console.log('OAuth callback detected in dashboard route, redirecting to callback handler');
+    return res.redirect('/auth/callback' + req.url.substring(req.url.indexOf('?')));
+  }
+  
+  // Continue to the existing dashboard handler
+  next();
+});
+
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
 app.get('/', (req, res) => {
@@ -337,6 +354,22 @@ app.get('/logout', async (req, res) => {
 
 app.use('/dashboard.html', (req, res, next) => {
   if (!req.session.user) return res.redirect('/');
+  next();
+});
+
+// Catch-all route for any other OAuth callbacks
+app.get('*', (req, res, next) => {
+  console.log('=== Catch-all route hit ===');
+  console.log('Catch-all URL:', req.url);
+  console.log('Catch-all query params:', req.query);
+  
+  // Check if this is an OAuth callback (has access_token in query or hash)
+  if (req.query.access_token || req.url.includes('access_token')) {
+    console.log('OAuth callback detected in catch-all route, redirecting to callback handler');
+    return res.redirect('/auth/callback' + req.url.substring(req.url.indexOf('?')));
+  }
+  
+  // Continue to static file serving
   next();
 });
 
