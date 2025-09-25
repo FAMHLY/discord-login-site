@@ -785,8 +785,8 @@ app.post('/api/servers/:serverId/configure', async (req, res) => {
     }
   );
 
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError || !user) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
 
@@ -796,7 +796,7 @@ app.post('/api/servers/:serverId/configure', async (req, res) => {
   try {
     console.log('Server ID:', serverId);
     console.log('Server Name:', serverName);
-    console.log('Session user ID:', user.id);
+    console.log('User ID:', user.id);
     
     // Try to fetch Discord server name from Discord API
     let actualServerName = serverName || `Server ${serverId}`;
