@@ -819,9 +819,52 @@ app.post('/api/servers/:serverId/configure', async (req, res) => {
       console.log('Could not fetch Discord server name, using provided name:', actualServerName);
     }
     
-    // Generate a unique invite code
-    const inviteCode = crypto.randomBytes(8).toString('hex');
-    console.log('Generated invite code:', inviteCode);
+    // Generate a real Discord invite code
+    let inviteCode = null;
+    let actualInviteUrl = null;
+    
+    // Try to create a real Discord invite if bot is available
+    if (process.env.DISCORD_BOT_TOKEN) {
+      try {
+        console.log('Creating real Discord invite...');
+        
+        // Get available guilds for the bot
+        const availableGuilds = await getDiscordGuilds();
+        const targetGuild = availableGuilds.find(g => g.id === serverId);
+        
+        if (targetGuild) {
+          // Get channels for the guild
+          const channels = await getDiscordChannels(serverId);
+          const textChannels = channels.filter(ch => ch.type === 0);
+          
+          // Try to create invite in the first available text channel
+          for (const channel of textChannels) {
+            try {
+              const invite = await createDiscordInvite(channel.id, {
+                maxAge: 0, // Never expires
+                maxUses: 0, // Unlimited uses
+                unique: true
+              });
+              inviteCode = invite.code;
+              actualInviteUrl = invite.url;
+              console.log(`✅ Created real Discord invite: ${invite.url}`);
+              break;
+            } catch (error) {
+              console.log(`❌ Failed to create invite in channel ${channel.name}:`, error.response?.data || error.message);
+              continue;
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error creating Discord invite:', error);
+      }
+    }
+    
+    // Fallback to random code if Discord invite creation failed
+    if (!inviteCode) {
+      inviteCode = crypto.randomBytes(8).toString('hex');
+      console.log('Using fallback random invite code:', inviteCode);
+    }
 
     // Create or update server in database
     console.log('Creating/updating server in database...');
