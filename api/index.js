@@ -65,6 +65,12 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
 });
 
+// Simple test route at root level
+app.get('/test', (req, res) => {
+  console.log('=== Simple test route hit ===');
+  res.json({ message: 'Simple test route is working', timestamp: new Date().toISOString() });
+});
+
 // Test route to verify callback route is working
 app.get('/test-callback', (req, res) => {
   console.log('=== Test callback route hit ===');
