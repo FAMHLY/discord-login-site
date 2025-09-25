@@ -190,7 +190,8 @@ async function loadServers() {
           ${responseData.configured_servers.map(server => createServerCard({
             id: server.discord_server_id,
             name: server.server_name,
-            icon: null,
+            icon: server.server_icon,
+            server_icon: server.server_icon,
             owner: true,
             permissions: 0,
             invite_code: server.invite_code,
@@ -242,11 +243,11 @@ function createServerCard(server) {
   return `
     <div class="server-card" data-server-id="${server.id}">
       <div class="server-header">
-        <img src="${server.icon || 'https://cdn.discordapp.com/embed/avatars/0.png'}" 
+        <img src="${server.server_icon || server.icon || 'https://cdn.discordapp.com/embed/avatars/0.png'}" 
              alt="${server.name}" class="server-icon">
         <div class="server-info">
           <h4>${server.name}</h4>
-          <p>${server.owner ? 'Owner' : 'Member'}</p>
+          <p>Server Owner</p>
         </div>
       </div>
       

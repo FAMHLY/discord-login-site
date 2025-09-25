@@ -833,6 +833,10 @@ app.post('/api/servers/:serverId/configure', async (req, res) => {
         const targetGuild = availableGuilds.find(g => g.id === serverId);
         
         if (targetGuild) {
+          // Use the actual Discord server name and icon
+          actualServerName = targetGuild.name;
+          console.log('Using Discord server name:', actualServerName);
+          
           // Get channels for the guild
           const channels = await getDiscordChannels(serverId);
           const textChannels = channels.filter(ch => ch.type === 0);
@@ -871,12 +875,20 @@ app.post('/api/servers/:serverId/configure', async (req, res) => {
     console.log('User metadata:', user.user_metadata);
     console.log('Provider ID:', user.user_metadata?.provider_id);
     
+    // Get server icon URL if available
+    let serverIconUrl = null;
+    if (targetGuild && targetGuild.icon) {
+      serverIconUrl = `https://cdn.discordapp.com/icons/${serverId}/${targetGuild.icon}.png`;
+      console.log('Server icon URL:', serverIconUrl);
+    }
+    
     const { data, error } = await supabase
       .from('discord_servers')
       .upsert({
         owner_id: user.id,
         discord_server_id: serverId,
         server_name: actualServerName,
+        server_icon: serverIconUrl,
         invite_code: inviteCode,
         owner_discord_id: user.user_metadata?.provider_id,
         updated_at: new Date().toISOString()
