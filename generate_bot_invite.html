@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Discord Bot Invite Generator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 16px;
+        }
+        input[type="text"]::placeholder {
+            color: rgba(255, 255, 255, 0.7);
+        }
+        .btn {
+            background: #43b581;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            width: 100%;
+        }
+        .btn:hover {
+            background: #3a9d6f;
+            transform: translateY(-2px);
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .result h3 {
+            margin-top: 0;
+            color: #43b581;
+        }
+        .result a {
+            color: #43b581;
+            word-break: break-all;
+        }
+        .permissions {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .permissions h3 {
+            margin-top: 0;
+            color: #43b581;
+        }
+        .permissions ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 Discord Bot Invite Generator</h1>
+        
+        <div class="permissions">
+            <h3>Required Bot Permissions:</h3>
+            <ul>
+                <li>Create Instant Invite</li>
+                <li>Manage Server</li>
+                <li>Read Message History</li>
+                <li>Send Messages</li>
+            </ul>
+        </div>
+        
+        <div class="form-group">
+            <label for="clientId">Discord Application Client ID:</label>
+            <input type="text" id="clientId" placeholder="Enter your bot's Client ID from Discord Developer Portal">
+        </div>
+        
+        <button class="btn" onclick="generateInvite()">Generate Bot Invite Link</button>
+        
+        <div id="result" class="result" style="display: none;">
+            <h3>Your Bot Invite Link:</h3>
+            <p><a id="inviteLink" href="#" target="_blank"></a></p>
+            <p><strong>Instructions:</strong></p>
+            <ol>
+                <li>Click the link above</li>
+                <li>Select the server where you want to add the bot</li>
+                <li>Authorize the bot with the required permissions</li>
+                <li>The bot will be added to your server</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        function generateInvite() {
+            const clientId = document.getElementById('clientId').value.trim();
+            
+            if (!clientId) {
+                alert('Please enter your Discord Application Client ID');
+                return;
+            }
+            
+            // Required permissions for the bot
+            const permissions = [
+                'CREATE_INSTANT_INVITE',  // Create invite links
+                'MANAGE_GUILD',          // Manage server
+                'READ_MESSAGE_HISTORY',  // Read messages
+                'SEND_MESSAGES',         // Send messages
+                'VIEW_CHANNEL'           // View channels
+            ];
+            
+            // Calculate permission integer
+            const permissionInt = permissions.reduce((acc, perm) => {
+                const permissionMap = {
+                    'CREATE_INSTANT_INVITE': 0x00000001,
+                    'MANAGE_GUILD': 0x00000020,
+                    'READ_MESSAGE_HISTORY': 0x00010000,
+                    'SEND_MESSAGES': 0x00000800,
+                    'VIEW_CHANNEL': 0x00000400
+                };
+                return acc + (permissionMap[perm] || 0);
+            }, 0);
+            
+            const inviteUrl = `https://discord.com/api/oauth2/authorize?client_id=${clientId}&permissions=${permissionInt}&scope=bot`;
+            
+            document.getElementById('inviteLink').href = inviteUrl;
+            document.getElementById('inviteLink').textContent = inviteUrl;
+            document.getElementById('result').style.display = 'block';
+        }
+    </script>
+</body>
+</html>
