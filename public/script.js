@@ -1,6 +1,28 @@
 document.addEventListener('DOMContentLoaded', () => {
   console.log('=== Frontend: Loading user data ===');
   
+  // Check if we have OAuth parameters in the URL
+  const urlParams = new URLSearchParams(window.location.search);
+  const hashParams = new URLSearchParams(window.location.hash.substring(1));
+  
+  console.log('URL search params:', Object.fromEntries(urlParams));
+  console.log('URL hash params:', Object.fromEntries(hashParams));
+  
+  // If we have OAuth parameters, try to handle them
+  if (urlParams.get('access_token') || hashParams.get('access_token')) {
+    console.log('OAuth parameters detected, redirecting to callback handler');
+    const accessToken = urlParams.get('access_token') || hashParams.get('access_token');
+    const refreshToken = urlParams.get('refresh_token') || hashParams.get('refresh_token');
+    
+    // Redirect to callback handler with parameters
+    const callbackUrl = '/auth/callback?' + 
+      (accessToken ? `access_token=${accessToken}` : '') +
+      (refreshToken ? `&refresh_token=${refreshToken}` : '');
+    
+    window.location.href = callbackUrl;
+    return;
+  }
+  
   fetch('/get-user')
     .then(res => {
       console.log('Response status:', res.status);
