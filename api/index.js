@@ -269,12 +269,15 @@ app.get('/dashboard.html', async (req, res, next) => {
     }
   );
 
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
   console.log('Dashboard session exists:', !!session);
   console.log('Dashboard session user:', session?.user?.id);
+  console.log('Dashboard session error:', sessionError);
+  console.log('Dashboard session data:', session);
   
   if (!session) {
     console.log('No session found in dashboard, redirecting to home');
+    console.log('Available cookies:', Object.keys(req.cookies));
     return res.redirect('/');
   }
 
