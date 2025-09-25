@@ -868,6 +868,9 @@ app.post('/api/servers/:serverId/configure', async (req, res) => {
 
     // Create or update server in database
     console.log('Creating/updating server in database...');
+    console.log('User metadata:', user.user_metadata);
+    console.log('Provider ID:', user.user_metadata?.provider_id);
+    
     const { data, error } = await supabase
       .from('discord_servers')
       .upsert({
