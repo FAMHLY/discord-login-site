@@ -697,7 +697,7 @@ app.get('/api/servers', async (req, res) => {
 
   try {
     console.log('Session provider token exists:', !!session.provider_token);
-    console.log('Session user ID:', session.user.id);
+    console.log('Session user ID:', user.id);
     
     // Get user data to extract Discord ID
     const { data: { user } } = await supabase.auth.getUser();
@@ -719,7 +719,7 @@ app.get('/api/servers', async (req, res) => {
     const { data: dbServers, error } = await supabase
       .from('discord_servers')
       .select('*')
-      .eq('owner_id', session.user.id);
+      .eq('owner_id', user.id);
 
     if (error) {
       console.error('Database error:', error);
@@ -776,7 +776,7 @@ app.post('/api/servers/:serverId/configure', async (req, res) => {
   try {
     console.log('Server ID:', serverId);
     console.log('Server Name:', serverName);
-    console.log('Session user ID:', session.user.id);
+    console.log('Session user ID:', user.id);
     
     // Try to fetch Discord server name from Discord API
     let actualServerName = serverName || `Server ${serverId}`;
@@ -808,7 +808,7 @@ app.post('/api/servers/:serverId/configure', async (req, res) => {
     const { data, error } = await supabase
       .from('discord_servers')
       .upsert({
-        owner_id: session.user.id,
+        owner_id: user.id,
         discord_server_id: serverId,
         server_name: actualServerName,
         invite_code: inviteCode,
@@ -860,14 +860,14 @@ app.delete('/api/servers/:serverId', async (req, res) => {
   const { serverId } = req.params;
 
   try {
-    console.log('Removing server:', serverId, 'for user:', session.user.id);
+    console.log('Removing server:', serverId, 'for user:', user.id);
     
     // Delete server from database
     const { error } = await supabase
       .from('discord_servers')
       .delete()
       .eq('discord_server_id', serverId)
-      .eq('owner_id', session.user.id);
+      .eq('owner_id', user.id);
 
     if (error) {
       console.error('Database error:', error);
@@ -901,8 +901,8 @@ app.post('/api/servers/:serverId/invite', async (req, res) => {
     }
   );
 
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError || !user) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
 
@@ -914,7 +914,7 @@ app.post('/api/servers/:serverId/invite', async (req, res) => {
       .from('discord_servers')
       .select('*')
       .eq('discord_server_id', serverId)
-      .eq('owner_id', session.user.id)
+      .eq('owner_id', user.id)
       .single();
 
     if (dbError || !dbServer) {
@@ -988,7 +988,7 @@ app.post('/api/servers/:serverId/invite', async (req, res) => {
         updated_at: new Date().toISOString()
       })
       .eq('discord_server_id', serverId)
-      .eq('owner_id', session.user.id);
+      .eq('owner_id', user.id);
 
     if (updateError) {
       console.error('Error updating database with invite code:', updateError);
@@ -1082,7 +1082,7 @@ app.get('/api/servers/:serverId/stats', async (req, res) => {
       .from('discord_servers')
       .select('*')
       .eq('discord_server_id', serverId)
-      .eq('owner_id', session.user.id)
+      .eq('owner_id', user.id)
       .single();
 
     if (dbError || !dbServer) {
