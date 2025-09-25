@@ -1210,4 +1210,64 @@ async function ensureServerOwnerExists(supabase, userId, discordUserId) {
   }
 }
 
+// Handle invite redirects
+app.get('/invite/:inviteCode', async (req, res) => {
+  const { inviteCode } = req.params;
+  console.log('=== Invite redirect called ===');
+  console.log('Invite code:', inviteCode);
+  
+  const supabase = createServerClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_ANON_KEY,
+    {
+      cookies: {
+        get: (name) => req.cookies[name],
+        set: (name, value, options) => res.cookie(name, value, options),
+        remove: (name, options) => res.clearCookie(name, options),
+      },
+    }
+  );
+
+  try {
+    // Look up the invite code in the database
+    const { data: server, error } = await supabase
+      .from('discord_servers')
+      .select('*')
+      .eq('invite_code', inviteCode)
+      .single();
+
+    if (error || !server) {
+      console.log('Invite code not found:', inviteCode);
+      return res.status(404).send(`
+        <html>
+          <head><title>Invite Not Found</title></head>
+          <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+            <h1>Invite Not Found</h1>
+            <p>This invite link is invalid or has expired.</p>
+            <a href="/">Return to Dashboard</a>
+          </body>
+        </html>
+      `);
+    }
+
+    // Redirect to the actual Discord invite
+    const discordInviteUrl = `https://discord.gg/${inviteCode}`;
+    console.log('Redirecting to Discord invite:', discordInviteUrl);
+    
+    res.redirect(discordInviteUrl);
+  } catch (error) {
+    console.error('Error handling invite redirect:', error);
+    res.status(500).send(`
+      <html>
+        <head><title>Error</title></head>
+        <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+          <h1>Error</h1>
+          <p>An error occurred while processing the invite.</p>
+          <a href="/">Return to Dashboard</a>
+        </body>
+      </html>
+    `);
+  }
+});
+
 module.exports = app;
