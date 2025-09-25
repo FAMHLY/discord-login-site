@@ -151,7 +151,6 @@ function initializeServerManagement() {
 async function loadServers() {
   console.log('Loading servers...');
   const serversList = document.getElementById('servers-list');
-  const inviteLinks = document.getElementById('invite-links');
   
   if (!serversList) return;
   
@@ -211,24 +210,6 @@ async function loadServers() {
       // Add event listeners for server action buttons
       addServerActionListeners();
       
-      // Render invite links for configured servers
-      const configuredServers = responseData.configured_servers || [];
-      if (inviteLinks && configuredServers.length > 0) {
-        inviteLinks.innerHTML = configuredServers.map(server => createInviteCard({
-          id: server.discord_server_id,
-          name: server.server_name,
-          icon: null,
-          owner: true,
-          permissions: 0,
-          invite_code: server.invite_code,
-          is_configured: true,
-          created_at: server.created_at
-        })).join('');
-        addInviteActionListeners();
-      } else if (inviteLinks) {
-        inviteLinks.innerHTML = '<div class="error">No servers configured yet. Configure a server to generate invite links.</div>';
-      }
-      
       return;
     }
     
@@ -246,16 +227,6 @@ async function loadServers() {
     // Add event listeners for server action buttons
     addServerActionListeners();
     
-    // Render invite links for configured servers
-    const configuredServers = servers.filter(server => server.is_configured);
-    if (inviteLinks && configuredServers.length > 0) {
-      inviteLinks.innerHTML = configuredServers.map(server => createInviteCard(server)).join('');
-      // Add event listeners for invite action buttons
-      addInviteActionListeners();
-    } else if (inviteLinks) {
-      inviteLinks.innerHTML = '<div class="error">No servers configured yet. Configure a server to generate invite links.</div>';
-    }
-    
   } catch (error) {
     console.error('Error loading servers:', error);
     serversList.innerHTML = '<div class="error">Failed to load servers. Please try again.</div>';
@@ -267,7 +238,7 @@ function createServerCard(server) {
   const statusText = server.is_configured ? 'Configured' : 'Not Configured';
   
   return `
-    <div class="server-card">
+    <div class="server-card" data-server-id="${server.id}">
       <div class="server-header">
         <img src="${server.icon || 'https://cdn.discordapp.com/embed/avatars/0.png'}" 
              alt="${server.name}" class="server-icon">
@@ -278,6 +249,16 @@ function createServerCard(server) {
       </div>
       
       <div class="server-status ${statusClass}">${statusText}</div>
+      
+      ${server.invite_code ? `
+        <div class="invite-url-display">
+          <label>Free Tier Invite Link:</label>
+          <div class="invite-url-container">
+            <input type="text" class="invite-url-input" value="${window.location.origin}/invite/${server.invite_code}" readonly>
+            <button class="btn btn-copy" data-action="copy-invite" data-server-id="${server.id}">Copy</button>
+          </div>
+        </div>
+      ` : ''}
       
       <div class="server-actions">
         ${!server.is_configured ? 
@@ -299,33 +280,6 @@ function createServerCard(server) {
   `;
 }
 
-function createInviteCard(server) {
-  return `
-    <div class="invite-card" id="invite-${server.id}">
-      <div class="invite-header">
-        <img src="${server.icon || 'https://cdn.discordapp.com/embed/avatars/0.png'}" 
-             alt="${server.name}" class="invite-icon">
-        <div class="invite-info">
-          <h4>${server.name}</h4>
-          <p>Free Tier Access</p>
-        </div>
-      </div>
-      
-      <div class="invite-url" id="invite-url-${server.id}">
-        Click "Generate Invite" to create a link
-      </div>
-      
-      <div class="invite-actions">
-        <button class="btn btn-primary" data-action="generate-invite" data-server-id="${server.id}">
-          Generate Invite
-        </button>
-        <button class="btn btn-secondary" data-action="copy-invite" data-server-id="${server.id}">
-          Copy Link
-        </button>
-      </div>
-    </div>
-  `;
-}
 
 async function configureServer(serverId, serverName) {
   console.log('Configuring server:', serverId, serverName);
@@ -387,12 +341,8 @@ async function generateInvite(serverId) {
     console.log('Invite generated:', result);
     
     if (result.success) {
-      // Update the invite URL display
-      const inviteUrlElement = document.getElementById(`invite-url-${serverId}`);
-      if (inviteUrlElement) {
-        inviteUrlElement.textContent = result.invite_url;
-      }
-      
+      // Reload servers to show the new invite link in the server card
+      await loadServers();
       showMessage('Invite link generated successfully!', 'success');
     } else {
       showMessage(result.error || 'Failed to generate invite link.', 'error');
@@ -433,10 +383,14 @@ async function viewStats(serverId) {
 }
 
 function copyInvite(serverId) {
-  const inviteUrlElement = document.getElementById(`invite-url-${serverId}`);
-  if (!inviteUrlElement) return;
+  // Find the input field within the server card
+  const serverCard = document.querySelector(`[data-server-id="${serverId}"]`);
+  if (!serverCard) return;
   
-  const inviteUrl = inviteUrlElement.textContent;
+  const inviteInput = serverCard.querySelector('.invite-url-input');
+  if (!inviteInput) return;
+  
+  const inviteUrl = inviteInput.value;
   if (inviteUrl === 'Click "Generate Invite" to create a link') {
     showMessage('Please generate an invite link first.', 'error');
     return;
@@ -558,48 +512,15 @@ function addServerActionListeners() {
       case 'remove':
         removeServer(serverId);
         break;
+      case 'copy-invite':
+        copyInvite(serverId);
+        break;
       default:
         console.log('Unknown action:', action);
     }
   });
 }
 
-function addInviteActionListeners() {
-  const inviteLinks = document.getElementById('invite-links');
-  if (!inviteLinks) {
-    console.error('invite-links element not found');
-    return;
-  }
-  
-  console.log('Adding invite action listeners to:', inviteLinks);
-  
-  inviteLinks.addEventListener('click', (e) => {
-    console.log('Invite click detected on:', e.target);
-    const button = e.target.closest('[data-action]');
-    console.log('Closest button with data-action:', button);
-    
-    if (!button) {
-      console.log('No button with data-action found');
-      return;
-    }
-    
-    const action = button.dataset.action;
-    const serverId = button.dataset.serverId;
-    
-    console.log('Invite action clicked:', action, serverId);
-    
-    switch (action) {
-      case 'generate-invite':
-        generateInvite(serverId);
-        break;
-      case 'copy-invite':
-        copyInvite(serverId);
-        break;
-      default:
-        console.log('Unknown invite action:', action);
-    }
-  });
-}
 
 function showMessage(message, type) {
   // Remove any existing messages

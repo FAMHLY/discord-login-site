@@ -421,6 +421,68 @@ header {
   grid-column: 1 / -1;
 }
 
+/* Invite URL display within server cards */
+.invite-url-display {
+  margin: 12px 0;
+  flex-shrink: 0;
+}
+
+.invite-url-display label {
+  display: block;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.invite-url-container {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.invite-url-input {
+  flex: 1;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: #43b581;
+  font-family: monospace;
+  font-size: 0.75rem;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.invite-url-input:focus {
+  border-color: #43b581;
+}
+
+.invite-url-input:read-only {
+  cursor: default;
+}
+
+.btn-copy {
+  background: #43b581;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.btn-copy:hover {
+  background: #3a9d6f;
+  transform: translateY(-1px);
+}
+
 .invite-links {
   display: grid;
   gap: 20px;
