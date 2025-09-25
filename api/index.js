@@ -449,8 +449,11 @@ app.get('/get-user', async (req, res) => {
   console.log('Session exists:', !!session);
   console.log('Session user:', session?.user?.id);
   console.log('Provider token exists:', !!session?.provider_token);
+  console.log('Session data:', session);
+  console.log('All cookies received:', Object.keys(req.cookies));
   
   if (session && session.user) {
+    console.log('Session found, getting user data...');
     const { data: { user } } = await supabase.auth.getUser();
     console.log('User data:', {
       id: user?.id,
@@ -506,6 +509,11 @@ app.get('/get-user', async (req, res) => {
     res.json(fallbackResult);
   } else {
     console.log('No session found, returning null');
+    console.log('Session check details:', {
+      hasSession: !!session,
+      sessionUser: session?.user,
+      sessionError: session?.error
+    });
     res.json(null);
   }
 });
