@@ -133,10 +133,9 @@ app.get('/auth/discord', async (req, res) => {
   // Force use of the actual Vercel domain
   let redirectTo;
   
-  // Use the correct Vercel domain from environment
-  const vercelDomain = process.env.VERCEL_URL || 'discord-login-site.vercel.app';
-  redirectTo = encodeURIComponent(`https://${vercelDomain}/auth/callback`);
-  console.log('Using Vercel domain:', vercelDomain);
+  // Use Supabase callback URL (standard OAuth flow)
+  redirectTo = encodeURIComponent('https://wrtqngqvgkoxvhzsjlde.supabase.co/auth/v1/callback');
+  console.log('Using Supabase callback URL');
   
   // Original logic (commented out for testing)
   /*
@@ -190,8 +189,20 @@ app.get('/auth/discord', async (req, res) => {
   res.redirect(redirectUrl);
 });
 
-// Handle OAuth callback
+// Handle Supabase OAuth callback redirect
 app.get('/auth/callback', async (req, res) => {
+  console.log('=== Supabase OAuth callback redirect received ===');
+  console.log('Callback URL:', req.url);
+  console.log('Callback query params:', req.query);
+  console.log('Callback cookies:', req.cookies);
+  
+  // Redirect to dashboard - Supabase has already processed the OAuth
+  console.log('Redirecting to dashboard after Supabase OAuth processing');
+  res.redirect('/dashboard.html');
+});
+
+// Handle OAuth callback (legacy route)
+app.get('/auth/callback-legacy', async (req, res) => {
   console.log('=== OAuth callback received ===');
   console.log('Callback URL:', req.url);
   console.log('Callback query params:', req.query);
