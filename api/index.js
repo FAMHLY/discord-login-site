@@ -30,25 +30,43 @@ app.get('/', (req, res) => {
 app.get('/auth/discord', (req, res) => {
   const baseUrl = process.env.SUPABASE_URL; // Already includes https://
   
-  // For Vercel deployment, use the actual domain
+  console.log('=== Discord OAuth Debug ===');
+  console.log('VERCEL_URL:', process.env.VERCEL_URL);
+  console.log('Request host:', req.headers.host);
+  console.log('X-Forwarded-Host:', req.headers['x-forwarded-host']);
+  console.log('X-Forwarded-Proto:', req.headers['x-forwarded-proto']);
+  console.log('All headers:', req.headers);
+  
+  // Force use of the actual Vercel domain
   let redirectTo;
-  if (process.env.VERCEL_URL) {
-    // Production Vercel deployment
-    redirectTo = encodeURIComponent(`https://${process.env.VERCEL_URL}/auth/callback`);
-  } else if (req.headers.host && req.headers.host.includes('vercel.app')) {
-    // Fallback for Vercel deployments
+  
+  // Hardcode the Vercel domain for now to test
+  const vercelDomain = 'discord-login-site.vercel.app';
+  redirectTo = encodeURIComponent(`https://${vercelDomain}/auth/callback`);
+  console.log('Using hardcoded Vercel domain:', vercelDomain);
+  
+  // Original logic (commented out for testing)
+  /*
+  if (req.headers.host && req.headers.host.includes('vercel.app')) {
+    // Use the actual Vercel domain from the request
     redirectTo = encodeURIComponent(`https://${req.headers.host}/auth/callback`);
+    console.log('Using Vercel domain from request host');
+  } else if (process.env.VERCEL_URL) {
+    // Use Vercel environment variable
+    redirectTo = encodeURIComponent(`https://${process.env.VERCEL_URL}/auth/callback`);
+    console.log('Using VERCEL_URL environment variable');
   } else {
-    // Local development
+    // Fallback - but this should not happen on Vercel
     const protocol = req.headers['x-forwarded-proto'] || 'https';
     const host = req.headers['x-forwarded-host'] || req.headers.host;
     redirectTo = encodeURIComponent(`${protocol}://${host}/auth/callback`);
+    console.log('Using fallback method');
   }
+  */
   
   const redirectUrl = `${baseUrl}/auth/v1/authorize?provider=discord&redirect_to=${redirectTo}`;
-  console.log('Discord OAuth redirect URL:', redirectUrl);
-  console.log('VERCEL_URL:', process.env.VERCEL_URL);
-  console.log('Request host:', req.headers.host);
+  console.log('Final redirect URL:', redirectUrl);
+  console.log('Decoded redirect_to:', decodeURIComponent(redirectTo));
   res.redirect(redirectUrl);
 });
 
