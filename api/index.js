@@ -29,8 +29,15 @@ app.get('/dashboard.html', async (req, res, next) => {
   console.log('Dashboard cookies:', req.cookies);
   
   // Check if this is an OAuth callback (has access_token in query or hash)
-  if (req.query.access_token || req.url.includes('access_token')) {
+  if (req.query.access_token || req.url.includes('access_token') || req.url.includes('#')) {
     console.log('OAuth callback detected in dashboard route, redirecting to callback handler');
+    console.log('Dashboard URL with hash:', req.url);
+    // Convert hash parameters to query parameters for the callback handler
+    const hashIndex = req.url.indexOf('#');
+    if (hashIndex !== -1) {
+      const hashParams = req.url.substring(hashIndex + 1);
+      return res.redirect('/auth/callback?' + hashParams);
+    }
     return res.redirect('/auth/callback' + req.url.substring(req.url.indexOf('?')));
   }
   
@@ -52,9 +59,16 @@ app.get('/', (req, res) => {
   });
   
   // Check if this is an OAuth callback (has access_token in query or hash)
-  if (req.query.access_token || req.url.includes('access_token')) {
+  if (req.query.access_token || req.url.includes('access_token') || req.url.includes('#')) {
     console.log('OAuth callback detected in root route, redirecting to callback handler');
-    return res.redirect('/auth/callback' + req.url.substring(1));
+    console.log('Full URL with hash:', req.url);
+    // Convert hash parameters to query parameters for the callback handler
+    const hashIndex = req.url.indexOf('#');
+    if (hashIndex !== -1) {
+      const hashParams = req.url.substring(hashIndex + 1);
+      return res.redirect('/auth/callback?' + hashParams);
+    }
+    return res.redirect('/auth/callback' + req.url.substring(req.url.indexOf('?')));
   }
   
   res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
@@ -422,8 +436,15 @@ app.get('*', (req, res, next) => {
   console.log('Catch-all query params:', req.query);
   
   // Check if this is an OAuth callback (has access_token in query or hash)
-  if (req.query.access_token || req.url.includes('access_token')) {
+  if (req.query.access_token || req.url.includes('access_token') || req.url.includes('#')) {
     console.log('OAuth callback detected in catch-all route, redirecting to callback handler');
+    console.log('Catch-all URL with hash:', req.url);
+    // Convert hash parameters to query parameters for the callback handler
+    const hashIndex = req.url.indexOf('#');
+    if (hashIndex !== -1) {
+      const hashParams = req.url.substring(hashIndex + 1);
+      return res.redirect('/auth/callback?' + hashParams);
+    }
     return res.redirect('/auth/callback' + req.url.substring(req.url.indexOf('?')));
   }
   
