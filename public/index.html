@@ -10,6 +10,29 @@
   <div class="container">
     <h1>Welcome</h1>
     <a href="/auth/discord" class="login-btn">Login with Discord</a>
+    <div id="error-message" style="display: none; color: red; margin-top: 20px;"></div>
   </div>
+  <script>
+    // Check for error parameters in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const error = urlParams.get('error');
+    if (error) {
+      const errorDiv = document.getElementById('error-message');
+      errorDiv.style.display = 'block';
+      switch(error) {
+        case 'oauth_error':
+          errorDiv.textContent = 'OAuth authentication failed. Please try again.';
+          break;
+        case 'no_session':
+          errorDiv.textContent = 'Session not created. Please try logging in again.';
+          break;
+        case 'callback_error':
+          errorDiv.textContent = 'Authentication callback error. Please try again.';
+          break;
+        default:
+          errorDiv.textContent = 'An error occurred during authentication.';
+      }
+    }
+  </script>
 </body>
 </html>

@@ -136,9 +136,9 @@ app.get('/auth/discord', async (req, res) => {
   // Force use of the actual Vercel domain
   let redirectTo;
   
-  // Use Supabase callback URL (standard OAuth flow)
-  redirectTo = encodeURIComponent('https://wrtqngqvgkoxvhzsjlde.supabase.co/auth/v1/callback');
-  console.log('Using Supabase callback URL');
+  // Use your site's callback URL so we can handle the redirect properly
+  redirectTo = encodeURIComponent('https://discord-login-site.vercel.app/auth/callback');
+  console.log('Using site callback URL for proper redirect handling');
   
   // Original logic (commented out for testing)
   /*
@@ -204,9 +204,50 @@ app.get('/auth/callback', async (req, res) => {
     'host': req.headers.host
   });
   
-  // Redirect to dashboard - Supabase has already processed the OAuth
-  console.log('Redirecting to dashboard after Supabase OAuth processing');
-  res.redirect('/dashboard.html');
+  const supabase = createServerClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_ANON_KEY,
+    {
+      cookies: {
+        get: (name) => req.cookies[name],
+        set: (name, value, options) => res.cookie(name, value, options),
+        remove: (name, options) => res.clearCookie(name, options),
+      },
+    }
+  );
+
+  try {
+    // Exchange the authorization code for a session
+    if (req.query.code) {
+      console.log('OAuth code found, exchanging for session');
+      const { data, error } = await supabase.auth.exchangeCodeForSession(req.query.code);
+      console.log('Code exchange result:', { data, error });
+      
+      if (error) {
+        console.error('Error exchanging code for session:', error);
+        return res.redirect('/?error=oauth_error');
+      }
+    }
+    
+    // Get the session to verify it was created
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    console.log('Callback session check:', { 
+      hasSession: !!session, 
+      userId: session?.user?.id,
+      error: sessionError 
+    });
+    
+    if (session) {
+      console.log('Session created successfully, redirecting to dashboard');
+      res.redirect('/dashboard.html');
+    } else {
+      console.log('No session found after callback, redirecting to home');
+      res.redirect('/?error=no_session');
+    }
+  } catch (error) {
+    console.error('Error in OAuth callback:', error);
+    res.redirect('/?error=callback_error');
+  }
 });
 
 // Handle OAuth callback (legacy route)
