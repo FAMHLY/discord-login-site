@@ -166,9 +166,10 @@ async function loadServers() {
     const responseData = await response.json();
     console.log('Loaded servers response:', responseData);
     
-    // Check if this is the new response format with setup_required
+    // Handle setup_required message
     if (responseData.setup_required) {
-      serversList.innerHTML = `
+      // Show OAuth setup message
+      const oauthMessage = `
         <div class="error">
           <h4>Discord OAuth Setup Required</h4>
           <p>To automatically fetch your Discord servers, we need to configure additional OAuth permissions.</p>
@@ -181,16 +182,10 @@ async function loadServers() {
         </div>
       `;
       
-      // Add event listener to the button
-      const addServerBtn = document.getElementById('add-server-btn');
-      if (addServerBtn) {
-        addServerBtn.addEventListener('click', addManualServer);
-      }
-      
       // Show configured servers if any
+      let configuredServersHtml = '';
       if (responseData.configured_servers && responseData.configured_servers.length > 0) {
-        const configuredSection = document.createElement('div');
-        configuredSection.innerHTML = `
+        configuredServersHtml = `
           <h4>Your Configured Servers</h4>
           ${responseData.configured_servers.map(server => createServerCard({
             id: server.discord_server_id,
@@ -203,7 +198,35 @@ async function loadServers() {
             created_at: server.created_at
           })).join('')}
         `;
-        serversList.appendChild(configuredSection);
+      }
+      
+      serversList.innerHTML = oauthMessage + configuredServersHtml;
+      
+      // Add event listener to the add server button
+      const addServerBtn = document.getElementById('add-server-btn');
+      if (addServerBtn) {
+        addServerBtn.addEventListener('click', addManualServer);
+      }
+      
+      // Add event listeners for server action buttons
+      addServerActionListeners();
+      
+      // Render invite links for configured servers
+      const configuredServers = responseData.configured_servers || [];
+      if (inviteLinks && configuredServers.length > 0) {
+        inviteLinks.innerHTML = configuredServers.map(server => createInviteCard({
+          id: server.discord_server_id,
+          name: server.server_name,
+          icon: null,
+          owner: true,
+          permissions: 0,
+          invite_code: server.invite_code,
+          is_configured: true,
+          created_at: server.created_at
+        })).join('');
+        addInviteActionListeners();
+      } else if (inviteLinks) {
+        inviteLinks.innerHTML = '<div class="error">No servers configured yet. Configure a server to generate invite links.</div>';
       }
       
       return;
