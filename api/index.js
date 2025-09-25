@@ -67,6 +67,15 @@ app.get('/auth/discord', (req, res) => {
   const redirectUrl = `${baseUrl}/auth/v1/authorize?provider=discord&redirect_to=${redirectTo}`;
   console.log('Final redirect URL:', redirectUrl);
   console.log('Decoded redirect_to:', decodeURIComponent(redirectTo));
+  console.log('Supabase base URL:', baseUrl);
+  console.log('Expected callback URL:', decodeURIComponent(redirectTo));
+  
+  // Also try to get current Supabase auth settings
+  console.log('Environment variables check:', {
+    'SUPABASE_URL': process.env.SUPABASE_URL,
+    'SUPABASE_ANON_KEY': process.env.SUPABASE_ANON_KEY ? 'exists' : 'missing'
+  });
+  
   res.redirect(redirectUrl);
 });
 
