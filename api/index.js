@@ -1215,11 +1215,78 @@ async function ensureServerOwnerExists(supabase, userId, discordUserId) {
   }
 }
 
+// Track invite clicks for affiliate analytics
+async function trackInviteClick(inviteCode, affiliateId = null) {
+  try {
+    const supabase = createServerClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_ANON_KEY,
+      {
+        cookies: {
+          get: () => null,
+          set: () => {},
+          remove: () => {},
+        },
+      }
+    );
+
+    // Find the server by invite code
+    const { data: server } = await supabase
+      .from('discord_servers')
+      .select('id, discord_server_id')
+      .eq('invite_code', inviteCode)
+      .single();
+
+    if (server) {
+      // Create affiliate tracking record
+      const { error: trackingError } = await supabase
+        .from('affiliate_tracking')
+        .insert({
+          server_id: server.id,
+          discord_server_id: server.discord_server_id,
+          invite_code: inviteCode,
+          affiliate_id: affiliateId,
+          conversion_status: 'clicked'
+        });
+
+      if (trackingError) {
+        console.error('Error creating affiliate tracking record:', trackingError);
+      } else {
+        // Update server stats
+        const { data: currentServer } = await supabase
+          .from('discord_servers')
+          .select('total_invite_clicks')
+          .eq('discord_server_id', server.discord_server_id)
+          .single();
+
+        const currentClicks = currentServer?.total_invite_clicks || 0;
+        
+        await supabase
+          .from('discord_servers')
+          .update({ 
+            total_invite_clicks: currentClicks + 1,
+            updated_at: new Date().toISOString()
+          })
+          .eq('discord_server_id', server.discord_server_id);
+        
+        console.log('Tracked affiliate invite click for server:', server.discord_server_id, 'affiliate:', affiliateId);
+      }
+    }
+  } catch (error) {
+    console.error('Error tracking affiliate invite click:', error);
+  }
+}
+
 // Handle invite redirects
 app.get('/invite/:inviteCode', async (req, res) => {
   const { inviteCode } = req.params;
+  const { affiliate } = req.query; // Get affiliate ID from URL parameter
   console.log('=== Invite redirect called ===');
   console.log('Invite code:', inviteCode);
+  console.log('Affiliate ID:', affiliate);
+  
+  // Track the invite click with affiliate information
+  await trackInviteClick(inviteCode, affiliate);
   
   // Create a public client for invite lookups (bypasses RLS)
   const supabase = createServerClient(

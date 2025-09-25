@@ -262,12 +262,12 @@ function createServerCard(server) {
         
         <div class="server-stats">
           <div class="stat-item">
-            <span class="stat-label">Invite Link Clicks:</span>
-            <span class="stat-value">${server.invite_clicks || 0}</span>
+            <span class="stat-label">Total Invite Clicks:</span>
+            <span class="stat-value">${server.total_invite_clicks || 0}</span>
           </div>
           <div class="stat-item">
-            <span class="stat-label">Invites Accepted:</span>
-            <span class="stat-value">${server.invites_accepted || 0}</span>
+            <span class="stat-label">Total Joins:</span>
+            <span class="stat-value">${server.total_joins || 0}</span>
           </div>
           <div class="stat-item">
             <span class="stat-label">Conversion Rate:</span>
@@ -285,8 +285,11 @@ function createServerCard(server) {
           `<button class="btn btn-primary" data-action="configure" data-server-id="${server.id}" data-server-name="${server.name}">
             Configure Server
           </button>` :
-          `<button class="btn btn-success" data-action="generate-invite" data-server-id="${server.id}">
+          `          <button class="btn btn-success" data-action="generate-invite" data-server-id="${server.id}">
             Generate Invite
+          </button>
+          <button class="btn btn-primary" data-action="generate-affiliate-link" data-server-id="${server.id}">
+            Affiliate Link
           </button>
           <button class="btn btn-danger" data-action="remove" data-server-id="${server.id}">
             Remove
@@ -421,6 +424,46 @@ function copyInvite(serverId) {
   });
 }
 
+function generateAffiliateLink(serverId) {
+  const serverCard = document.querySelector(`[data-server-id="${serverId}"]`);
+  if (!serverCard) return;
+  
+  const inviteInput = serverCard.querySelector('.invite-url-input');
+  if (!inviteInput) return;
+  
+  const baseUrl = inviteInput.value;
+  if (baseUrl === 'Click "Generate Invite" to create a link') {
+    showMessage('Please generate an invite link first.', 'error');
+    return;
+  }
+  
+  // Prompt for affiliate ID
+  const affiliateId = prompt('Enter the Discord User ID of the affiliate (or leave blank for direct link):');
+  
+  if (affiliateId !== null) { // User didn't cancel
+    let affiliateUrl;
+    if (affiliateId.trim()) {
+      affiliateUrl = `${baseUrl}?affiliate=${affiliateId.trim()}`;
+    } else {
+      affiliateUrl = baseUrl;
+    }
+    
+    // Copy to clipboard
+    navigator.clipboard.writeText(affiliateUrl).then(() => {
+      showMessage('Affiliate link copied to clipboard!', 'success');
+    }).catch(() => {
+      // Fallback for older browsers
+      const tempInput = document.createElement('input');
+      tempInput.value = affiliateUrl;
+      document.body.appendChild(tempInput);
+      tempInput.select();
+      document.execCommand('copy');
+      document.body.removeChild(tempInput);
+      showMessage('Affiliate link copied to clipboard!', 'success');
+    });
+  }
+}
+
 function addManualServer() {
   console.log('addManualServer function called');
   
@@ -529,9 +572,12 @@ function addServerActionListeners() {
       case 'remove':
         removeServer(serverId);
         break;
-      case 'copy-invite':
-        copyInvite(serverId);
-        break;
+        case 'copy-invite':
+          copyInvite(serverId);
+          break;
+        case 'generate-affiliate-link':
+          generateAffiliateLink(serverId);
+          break;
       default:
         console.log('Unknown action:', action);
     }
