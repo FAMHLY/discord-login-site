@@ -297,6 +297,18 @@ header {
   box-shadow: 0 6px 20px rgba(67, 181, 129, 0.4);
 }
 
+.btn-danger {
+  background-color: #dc3545;
+  color: white;
+  box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3);
+}
+
+.btn-danger:hover {
+  background-color: #c82333;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(220, 53, 69, 0.4);
+}
+
 .servers-list {
   display: grid;
   gap: 20px;

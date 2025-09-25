@@ -220,10 +220,15 @@ async function loadServers() {
     // Render servers
     serversList.innerHTML = servers.map(server => createServerCard(server)).join('');
     
+    // Add event listeners for server action buttons
+    addServerActionListeners();
+    
     // Render invite links for configured servers
     const configuredServers = servers.filter(server => server.is_configured);
     if (inviteLinks && configuredServers.length > 0) {
       inviteLinks.innerHTML = configuredServers.map(server => createInviteCard(server)).join('');
+      // Add event listeners for invite action buttons
+      addInviteActionListeners();
     } else if (inviteLinks) {
       inviteLinks.innerHTML = '<div class="error">No servers configured yet. Configure a server to generate invite links.</div>';
     }
@@ -253,14 +258,17 @@ function createServerCard(server) {
       
       <div class="server-actions">
         ${!server.is_configured ? 
-          `<button class="btn btn-primary" onclick="configureServer('${server.id}', '${server.name}')">
+          `<button class="btn btn-primary" data-action="configure" data-server-id="${server.id}" data-server-name="${server.name}">
             Configure Server
           </button>` :
-          `<button class="btn btn-success" onclick="generateInvite('${server.id}')">
+          `<button class="btn btn-success" data-action="generate-invite" data-server-id="${server.id}">
             Generate Invite
           </button>
-          <button class="btn btn-secondary" onclick="viewStats('${server.id}')">
+          <button class="btn btn-secondary" data-action="view-stats" data-server-id="${server.id}">
             View Stats
+          </button>
+          <button class="btn btn-danger" data-action="remove" data-server-id="${server.id}">
+            Remove
           </button>`
         }
       </div>
@@ -285,10 +293,10 @@ function createInviteCard(server) {
       </div>
       
       <div class="invite-actions">
-        <button class="btn btn-primary" onclick="generateInvite('${server.id}')">
+        <button class="btn btn-primary" data-action="generate-invite" data-server-id="${server.id}">
           Generate Invite
         </button>
-        <button class="btn btn-secondary" onclick="copyInvite('${server.id}')">
+        <button class="btn btn-secondary" data-action="copy-invite" data-server-id="${server.id}">
           Copy Link
         </button>
       </div>
@@ -448,6 +456,100 @@ function addManualServer() {
   console.log('Calling configureServer with:', serverId, 'Manual Server');
   // Configure the server
   configureServer(serverId, 'Manual Server');
+}
+
+async function removeServer(serverId) {
+  console.log('Removing server:', serverId);
+  
+  if (!confirm('Are you sure you want to remove this server? This action cannot be undone.')) {
+    return;
+  }
+  
+  try {
+    const response = await fetch(`/api/servers/${serverId}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    });
+    
+    console.log('Remove response received:', response.status, response.statusText);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Response error:', errorText);
+      throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
+    }
+    
+    const result = await response.json();
+    console.log('Server removed successfully:', result);
+    
+    // Show success message
+    showMessage('Server removed successfully!', 'success');
+    
+    // Reload servers to show updated status
+    loadServers();
+    
+  } catch (error) {
+    console.error('Error removing server:', error);
+    console.error('Error details:', error.message);
+    showMessage(`Failed to remove server: ${error.message}`, 'error');
+  }
+}
+
+function addServerActionListeners() {
+  const serversList = document.getElementById('servers-list');
+  if (!serversList) return;
+  
+  serversList.addEventListener('click', (e) => {
+    const button = e.target.closest('[data-action]');
+    if (!button) return;
+    
+    const action = button.dataset.action;
+    const serverId = button.dataset.serverId;
+    const serverName = button.dataset.serverName;
+    
+    console.log('Server action clicked:', action, serverId, serverName);
+    
+    switch (action) {
+      case 'configure':
+        configureServer(serverId, serverName);
+        break;
+      case 'generate-invite':
+        generateInvite(serverId);
+        break;
+      case 'view-stats':
+        viewStats(serverId);
+        break;
+      case 'remove':
+        removeServer(serverId);
+        break;
+    }
+  });
+}
+
+function addInviteActionListeners() {
+  const inviteLinks = document.getElementById('invite-links');
+  if (!inviteLinks) return;
+  
+  inviteLinks.addEventListener('click', (e) => {
+    const button = e.target.closest('[data-action]');
+    if (!button) return;
+    
+    const action = button.dataset.action;
+    const serverId = button.dataset.serverId;
+    
+    console.log('Invite action clicked:', action, serverId);
+    
+    switch (action) {
+      case 'generate-invite':
+        generateInvite(serverId);
+        break;
+      case 'copy-invite':
+        copyInvite(serverId);
+        break;
+    }
+  });
 }
 
 function showMessage(message, type) {

@@ -726,9 +726,26 @@ app.post('/api/servers/:serverId/configure', async (req, res) => {
     console.log('Server Name:', serverName);
     console.log('Session user ID:', session.user.id);
     
-    // For manual server setup, we skip Discord API verification
-    // since we don't have the provider token
-    console.log('Skipping Discord API verification for manual setup');
+    // Try to fetch Discord server name from Discord API
+    let actualServerName = serverName || `Server ${serverId}`;
+    
+    try {
+      // Try to get server info from Discord API (this might work for public servers)
+      console.log('Attempting to fetch Discord server info...');
+      const discordResponse = await axios.get(`https://discord.com/api/guilds/${serverId}`, {
+        headers: { 
+          'User-Agent': 'DiscordBot (https://discord.com/api, 1.0)',
+        },
+        timeout: 5000
+      });
+      
+      if (discordResponse.data && discordResponse.data.name) {
+        actualServerName = discordResponse.data.name;
+        console.log('Fetched Discord server name:', actualServerName);
+      }
+    } catch (error) {
+      console.log('Could not fetch Discord server name, using provided name:', actualServerName);
+    }
     
     // Generate a unique invite code
     const inviteCode = crypto.randomBytes(8).toString('hex');
@@ -741,7 +758,7 @@ app.post('/api/servers/:serverId/configure', async (req, res) => {
       .upsert({
         owner_id: session.user.id,
         discord_server_id: serverId,
-        server_name: serverName || `Server ${serverId}`,
+        server_name: actualServerName,
         invite_code: inviteCode,
         updated_at: new Date().toISOString()
       }, { 
@@ -758,12 +775,61 @@ app.post('/api/servers/:serverId/configure', async (req, res) => {
     res.json({ 
       success: true, 
       invite_code: inviteCode,
-      server_name: serverName || `Server ${serverId}`,
+      server_name: actualServerName,
       server_id: serverId
     });
   } catch (error) {
     console.error('Error configuring server:', error);
     res.status(500).json({ error: 'Failed to configure server', details: error.message });
+  }
+});
+
+// Remove server configuration
+app.delete('/api/servers/:serverId', async (req, res) => {
+  console.log('=== /api/servers/:serverId DELETE endpoint called ===');
+  
+  const supabase = createServerClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_ANON_KEY,
+    {
+      cookies: {
+        get: (name) => req.cookies[name],
+        set: (name, value, options) => res.cookie(name, value, options),
+        remove: (name, options) => res.clearCookie(name, options),
+      },
+    }
+  );
+
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  const { serverId } = req.params;
+
+  try {
+    console.log('Removing server:', serverId, 'for user:', session.user.id);
+    
+    // Delete server from database
+    const { error } = await supabase
+      .from('discord_servers')
+      .delete()
+      .eq('discord_server_id', serverId)
+      .eq('owner_id', session.user.id);
+
+    if (error) {
+      console.error('Database error:', error);
+      return res.status(500).json({ error: 'Database error', details: error.message });
+    }
+
+    console.log('Server removed successfully');
+    res.json({ 
+      success: true, 
+      message: 'Server removed successfully'
+    });
+  } catch (error) {
+    console.error('Error removing server:', error);
+    res.status(500).json({ error: 'Failed to remove server', details: error.message });
   }
 });
 
