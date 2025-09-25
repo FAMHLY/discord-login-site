@@ -607,8 +607,8 @@ header {
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 12px;
-  padding: 20px;
-  margin: 20px 0;
+  padding: 15px;
+  margin: 15px 0;
   backdrop-filter: blur(10px);
 }
 
@@ -620,14 +620,14 @@ header {
 
 .server-addition-card p {
   color: rgba(255, 255, 255, 0.9);
-  margin-bottom: 15px;
-  line-height: 1.5;
+  margin-bottom: 10px;
+  line-height: 1.4;
 }
 
 .server-input-section {
   display: flex;
   gap: 10px;
-  margin: 15px 0;
+  margin: 10px 0;
   align-items: center;
 }
 
