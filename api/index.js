@@ -24,6 +24,22 @@ if (process.env.SESSION_SECRET) {
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
 app.get('/', (req, res) => {
+  console.log('=== Root route hit ===');
+  console.log('Root URL:', req.url);
+  console.log('Root query params:', req.query);
+  console.log('Root cookies:', req.cookies);
+  console.log('Root headers:', {
+    'user-agent': req.headers['user-agent'],
+    'referer': req.headers.referer,
+    'host': req.headers.host
+  });
+  
+  // Check if this is an OAuth callback (has access_token in query or hash)
+  if (req.query.access_token || req.url.includes('access_token')) {
+    console.log('OAuth callback detected in root route, redirecting to callback handler');
+    return res.redirect('/auth/callback' + req.url.substring(1));
+  }
+  
   res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
 });
 
@@ -82,8 +98,14 @@ app.get('/auth/discord', (req, res) => {
 // Handle OAuth callback
 app.get('/auth/callback', async (req, res) => {
   console.log('=== OAuth callback received ===');
+  console.log('Callback URL:', req.url);
   console.log('Callback query params:', req.query);
   console.log('Callback cookies:', req.cookies);
+  console.log('Callback headers:', {
+    'user-agent': req.headers['user-agent'],
+    'referer': req.headers.referer,
+    'host': req.headers.host
+  });
   
   const supabase = createServerClient(
     process.env.SUPABASE_URL,
