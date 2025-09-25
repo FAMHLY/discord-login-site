@@ -832,6 +832,7 @@ app.post('/api/servers/:serverId/configure', async (req, res) => {
         discord_server_id: serverId,
         server_name: actualServerName,
         invite_code: inviteCode,
+        owner_discord_id: user.user_metadata?.provider_id,
         updated_at: new Date().toISOString()
       }, { 
         onConflict: 'discord_server_id',

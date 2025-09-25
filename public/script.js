@@ -251,48 +251,43 @@ function createServerCard(server) {
       
       <div class="server-status ${statusClass}">${statusText}</div>
       
-      ${server.invite_code ? `
-        <div class="invite-url-display">
-          <label>Free Tier Invite Link:</label>
-          <div class="invite-url-container">
-            <input type="text" class="invite-url-input" value="${window.location.origin}/invite/${server.invite_code}" readonly>
-            <button class="btn btn-copy" data-action="copy-invite" data-server-id="${server.id}">Copy</button>
-          </div>
+      <div class="invite-url-display">
+        <label>Your Permanent Invite Link:</label>
+        <div class="invite-url-container">
+          <input type="text" class="invite-url-input" value="${window.location.origin}/invite/${server.invite_code || 'setup-required'}?affiliate=${server.owner_discord_id || 'unknown'}" readonly>
+          <button class="btn btn-copy" data-action="copy-invite" data-server-id="${server.id}">Copy</button>
         </div>
-        
-        <div class="server-stats">
-          <div class="stat-item">
-            <span class="stat-label">Total Invite Clicks:</span>
-            <span class="stat-value">${server.total_invite_clicks || 0}</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">Total Joins:</span>
-            <span class="stat-value">${server.total_joins || 0}</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">Conversion Rate:</span>
-            <span class="stat-value">${server.conversion_rate || '0%'}</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">Monthly Revenue:</span>
-            <span class="stat-value">$${server.monthly_revenue || '0.00'}</span>
-          </div>
+        <div class="help-text">
+          <p><small>💡 <strong>This is your permanent invite link.</strong> Share it anywhere - it will never change and always track your referrals.</small></p>
         </div>
-      ` : ''}
+      </div>
+      
+      <div class="server-stats">
+        <div class="stat-item">
+          <span class="stat-label">Total Invite Clicks:</span>
+          <span class="stat-value">${server.total_invite_clicks || 0}</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Total Joins:</span>
+          <span class="stat-value">${server.total_joins || 0}</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Conversion Rate:</span>
+          <span class="stat-value">${server.conversion_rate || '0%'}</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Monthly Revenue:</span>
+          <span class="stat-value">$${server.monthly_revenue || '0.00'}</span>
+        </div>
+      </div>
       
       <div class="server-actions">
         ${!server.is_configured ? 
           `<button class="btn btn-primary" data-action="configure" data-server-id="${server.id}" data-server-name="${server.name}">
             Configure Server
           </button>` :
-          `          <button class="btn btn-success" data-action="generate-invite" data-server-id="${server.id}">
-            Generate Invite
-          </button>
-          <button class="btn btn-primary" data-action="generate-affiliate-link" data-server-id="${server.id}">
-            Affiliate Link
-          </button>
-          <button class="btn btn-danger" data-action="remove" data-server-id="${server.id}">
-            Remove
+          `<button class="btn btn-danger" data-action="remove" data-server-id="${server.id}">
+            Remove Server
           </button>`
         }
       </div>
@@ -342,66 +337,6 @@ async function configureServer(serverId, serverName) {
   }
 }
 
-async function generateInvite(serverId) {
-  console.log('Generating invite for server:', serverId);
-  
-  try {
-    const response = await fetch(`/api/servers/${serverId}/invite`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      }
-    });
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    const result = await response.json();
-    console.log('Invite generated:', result);
-    
-    if (result.success) {
-      // Reload servers to show the new invite link in the server card
-      await loadServers();
-      showMessage('Invite link generated successfully!', 'success');
-    } else {
-      showMessage(result.error || 'Failed to generate invite link.', 'error');
-    }
-    
-  } catch (error) {
-    console.error('Error generating invite:', error);
-    showMessage('Failed to generate invite link. Please try again.', 'error');
-  }
-}
-
-async function viewStats(serverId) {
-  console.log('Viewing stats for server:', serverId);
-  
-  try {
-    const response = await fetch(`/api/servers/${serverId}/stats`);
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    const stats = await response.json();
-    console.log('Server stats:', stats);
-    
-    // Create a simple stats display
-    const statsMessage = `
-      <strong>${stats.server_name}</strong><br>
-      Members: ${stats.member_count}<br>
-      Invite Code: ${stats.invite_code}
-    `;
-    
-    showMessage(statsMessage, 'success');
-    
-  } catch (error) {
-    console.error('Error fetching stats:', error);
-    showMessage('Failed to load server statistics.', 'error');
-  }
-}
-
 function copyInvite(serverId) {
   // Find the input field within the server card
   const serverCard = document.querySelector(`[data-server-id="${serverId}"]`);
@@ -411,57 +346,17 @@ function copyInvite(serverId) {
   if (!inviteInput) return;
   
   const inviteUrl = inviteInput.value;
-  if (inviteUrl === 'Click "Generate Invite" to create a link') {
-    showMessage('Please generate an invite link first.', 'error');
+  if (inviteUrl.includes('setup-required') || inviteUrl.includes('unknown')) {
+    showMessage('Please configure your server first.', 'error');
     return;
   }
   
   navigator.clipboard.writeText(inviteUrl).then(() => {
-    showMessage('Invite link copied to clipboard!', 'success');
+    showMessage('Permanent invite link copied to clipboard!', 'success');
   }).catch(err => {
     console.error('Failed to copy invite link:', err);
     showMessage('Failed to copy invite link.', 'error');
   });
-}
-
-function generateAffiliateLink(serverId) {
-  const serverCard = document.querySelector(`[data-server-id="${serverId}"]`);
-  if (!serverCard) return;
-  
-  const inviteInput = serverCard.querySelector('.invite-url-input');
-  if (!inviteInput) return;
-  
-  const baseUrl = inviteInput.value;
-  if (baseUrl === 'Click "Generate Invite" to create a link') {
-    showMessage('Please generate an invite link first.', 'error');
-    return;
-  }
-  
-  // Prompt for affiliate ID
-  const affiliateId = prompt('Enter the Discord User ID of the affiliate (or leave blank for direct link):');
-  
-  if (affiliateId !== null) { // User didn't cancel
-    let affiliateUrl;
-    if (affiliateId.trim()) {
-      affiliateUrl = `${baseUrl}?affiliate=${affiliateId.trim()}`;
-    } else {
-      affiliateUrl = baseUrl;
-    }
-    
-    // Copy to clipboard
-    navigator.clipboard.writeText(affiliateUrl).then(() => {
-      showMessage('Affiliate link copied to clipboard!', 'success');
-    }).catch(() => {
-      // Fallback for older browsers
-      const tempInput = document.createElement('input');
-      tempInput.value = affiliateUrl;
-      document.body.appendChild(tempInput);
-      tempInput.select();
-      document.execCommand('copy');
-      document.body.removeChild(tempInput);
-      showMessage('Affiliate link copied to clipboard!', 'success');
-    });
-  }
 }
 
 function addManualServer() {
@@ -563,20 +458,11 @@ function addServerActionListeners() {
       case 'configure':
         configureServer(serverId, serverName);
         break;
-      case 'generate-invite':
-        generateInvite(serverId);
-        break;
-      case 'view-stats':
-        viewStats(serverId);
-        break;
-      case 'remove':
-        removeServer(serverId);
-        break;
+        case 'remove':
+          removeServer(serverId);
+          break;
         case 'copy-invite':
           copyInvite(serverId);
-          break;
-        case 'generate-affiliate-link':
-          generateAffiliateLink(serverId);
           break;
       default:
         console.log('Unknown action:', action);
