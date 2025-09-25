@@ -40,10 +40,10 @@ app.get('/auth/discord', (req, res) => {
   // Force use of the actual Vercel domain
   let redirectTo;
   
-  // Hardcode the Vercel domain for now to test
-  const vercelDomain = 'discord-login-site.vercel.app';
+  // Use the correct Vercel domain from environment
+  const vercelDomain = process.env.VERCEL_URL || 'discord-login-site.vercel.app';
   redirectTo = encodeURIComponent(`https://${vercelDomain}/auth/callback`);
-  console.log('Using hardcoded Vercel domain:', vercelDomain);
+  console.log('Using Vercel domain:', vercelDomain);
   
   // Original logic (commented out for testing)
   /*
