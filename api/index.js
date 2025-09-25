@@ -137,8 +137,8 @@ app.get('/auth/discord', async (req, res) => {
   let redirectTo;
   
   // Use Supabase callback URL - Supabase will handle the OAuth and redirect to our site
-  redirectTo = encodeURIComponent('https://discord-login-site.vercel.app/dashboard.html');
-  console.log('Using Supabase callback flow with dashboard redirect');
+  redirectTo = encodeURIComponent('https://discord-login-site.vercel.app/auth/callback');
+  console.log('Using Supabase callback flow with callback redirect');
   
   // Original logic (commented out for testing)
   /*
@@ -164,8 +164,8 @@ app.get('/auth/discord', async (req, res) => {
   console.log('Decoded redirect_to:', decodeURIComponent(redirectTo));
   console.log('Supabase base URL:', baseUrl);
   console.log('Expected callback URL:', decodeURIComponent(redirectTo));
-  console.log('=== IMPORTANT: Discord OAuth redirect should be Supabase callback ===');
-  console.log('Discord OAuth redirect URL should be:', `${baseUrl}/auth/v1/callback`);
+  console.log('=== IMPORTANT: Discord OAuth redirect should be your site callback ===');
+  console.log('Discord OAuth redirect URL should be:', 'https://discord-login-site.vercel.app/auth/callback');
   
   // Also try to get current Supabase auth settings
   console.log('Environment variables check:', {
@@ -217,9 +217,19 @@ app.get('/auth/callback', async (req, res) => {
     process.env.SUPABASE_ANON_KEY,
     {
       cookies: {
-        get: (name) => req.cookies[name],
-        set: (name, value, options) => res.cookie(name, value, options),
-        remove: (name, options) => res.clearCookie(name, options),
+        get: (name) => {
+          const value = req.cookies[name];
+          console.log(`Callback getting cookie ${name}:`, value ? 'exists' : 'missing');
+          return value;
+        },
+        set: (name, value, options) => {
+          console.log(`Callback setting cookie ${name}:`, 'exists');
+          res.cookie(name, value, options);
+        },
+        remove: (name, options) => {
+          console.log(`Callback removing cookie ${name}`);
+          res.clearCookie(name, options);
+        },
       },
     }
   );
@@ -235,6 +245,13 @@ app.get('/auth/callback', async (req, res) => {
         console.error('Error exchanging code for session:', error);
         return res.redirect('/?error=oauth_error');
       }
+      
+      if (data.session) {
+        console.log('Session created from code exchange:', {
+          userId: data.session.user?.id,
+          hasProviderToken: !!data.session.provider_token
+        });
+      }
     }
     
     // Get the session to verify it was created
@@ -242,7 +259,8 @@ app.get('/auth/callback', async (req, res) => {
     console.log('Callback session check:', { 
       hasSession: !!session, 
       userId: session?.user?.id,
-      error: sessionError 
+      error: sessionError,
+      cookiesAfter: Object.keys(req.cookies)
     });
     
     if (session) {
