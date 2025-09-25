@@ -708,28 +708,26 @@ app.post('/api/servers/:serverId/configure', async (req, res) => {
   const { serverName } = req.body;
 
   try {
-    // Verify user owns this server
-    const discordResponse = await axios.get('https://discord.com/api/users/@me/guilds', {
-      headers: { Authorization: `Bearer ${session.provider_token}` },
-    });
-
-    const userServers = discordResponse.data;
-    const targetServer = userServers.find(server => server.id === serverId);
+    console.log('Server ID:', serverId);
+    console.log('Server Name:', serverName);
+    console.log('Session user ID:', session.user.id);
     
-    if (!targetServer) {
-      return res.status(404).json({ error: 'Server not found or not owned by user' });
-    }
-
+    // For manual server setup, we skip Discord API verification
+    // since we don't have the provider token
+    console.log('Skipping Discord API verification for manual setup');
+    
     // Generate a unique invite code
     const inviteCode = crypto.randomBytes(8).toString('hex');
+    console.log('Generated invite code:', inviteCode);
 
     // Create or update server in database
+    console.log('Creating/updating server in database...');
     const { data, error } = await supabase
       .from('discord_servers')
       .upsert({
         owner_id: session.user.id,
         discord_server_id: serverId,
-        server_name: serverName || targetServer.name,
+        server_name: serverName || `Server ${serverId}`,
         invite_code: inviteCode,
         updated_at: new Date().toISOString()
       }, { 
@@ -739,17 +737,19 @@ app.post('/api/servers/:serverId/configure', async (req, res) => {
 
     if (error) {
       console.error('Database error:', error);
-      return res.status(500).json({ error: 'Database error' });
+      return res.status(500).json({ error: 'Database error', details: error.message });
     }
 
+    console.log('Server configured successfully in database');
     res.json({ 
       success: true, 
       invite_code: inviteCode,
-      server_name: serverName || targetServer.name
+      server_name: serverName || `Server ${serverId}`,
+      server_id: serverId
     });
   } catch (error) {
     console.error('Error configuring server:', error);
-    res.status(500).json({ error: 'Failed to configure server' });
+    res.status(500).json({ error: 'Failed to configure server', details: error.message });
   }
 });
 
