@@ -259,6 +259,25 @@ function createServerCard(server) {
             <button class="btn btn-copy" data-action="copy-invite" data-server-id="${server.id}">Copy</button>
           </div>
         </div>
+        
+        <div class="server-stats">
+          <div class="stat-item">
+            <span class="stat-label">Invite Link Clicks:</span>
+            <span class="stat-value">${server.invite_clicks || 0}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Invites Accepted:</span>
+            <span class="stat-value">${server.invites_accepted || 0}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Conversion Rate:</span>
+            <span class="stat-value">${server.conversion_rate || '0%'}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Monthly Revenue:</span>
+            <span class="stat-value">$${server.monthly_revenue || '0.00'}</span>
+          </div>
+        </div>
       ` : ''}
       
       <div class="server-actions">
@@ -268,9 +287,6 @@ function createServerCard(server) {
           </button>` :
           `<button class="btn btn-success" data-action="generate-invite" data-server-id="${server.id}">
             Generate Invite
-          </button>
-          <button class="btn btn-secondary" data-action="view-stats" data-server-id="${server.id}">
-            View Stats
           </button>
           <button class="btn btn-danger" data-action="remove" data-server-id="${server.id}">
             Remove
