@@ -468,6 +468,7 @@ app.get('/get-user', async (req, res) => {
         const result = {
           username: username,
           avatar: avatarUrl,
+          discord_id: discordUser.id,
         };
         console.log('Returning Discord data:', result);
         res.json(result);

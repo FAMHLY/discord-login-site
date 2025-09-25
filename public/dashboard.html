@@ -9,14 +9,35 @@
 <body>
   <header>
     <div class="user-info">
-      <img id="avatar" src="" alt="Profile Picture">
-      <span id="username"></span>
-      <a href="/logout">Logout</a>
+      <img id="avatar" src="" alt="Profile Picture" class="profile-avatar">
+      <div class="user-details">
+        <span id="username" class="username"></span>
+        <span id="user-id" class="user-id"></span>
+      </div>
+      <a href="/logout" class="logout-btn">Logout</a>
     </div>
   </header>
   <div class="container">
-    <h1>Dashboard</h1>
-    <p>This is your dashboard content. Add more here as needed.</p>
+    <div class="welcome-section">
+      <h1>Welcome to your Dashboard!</h1>
+      <p>You are successfully logged in with Discord.</p>
+    </div>
+    
+    <div class="profile-section">
+      <h2>Your Profile</h2>
+      <div class="profile-card">
+        <img id="profile-avatar" src="" alt="Profile Picture" class="large-avatar">
+        <div class="profile-info">
+          <h3 id="profile-username"></h3>
+          <p id="profile-id"></p>
+        </div>
+      </div>
+    </div>
+    
+    <div class="dashboard-content">
+      <h2>Dashboard Content</h2>
+      <p>This is your dashboard content. Add more here as needed.</p>
+    </div>
   </div>
   <script src="script.js"></script>
 </body>
