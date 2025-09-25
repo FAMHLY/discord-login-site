@@ -564,32 +564,34 @@ app.get('/get-user', async (req, res) => {
     }
   );
 
-  const { data: { session } } = await supabase.auth.getSession();
-  console.log('Session exists:', !!session);
-  console.log('Session user:', session?.user?.id);
-  console.log('Provider token exists:', !!session?.provider_token);
-  console.log('Session data:', session);
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  console.log('User exists:', !!user);
+  console.log('User ID:', user?.id);
+  console.log('User error:', userError);
   console.log('All cookies received:', Object.keys(req.cookies));
   
-  if (session && session.user) {
-    console.log('Session found, getting user data...');
-    const { data: { user } } = await supabase.auth.getUser();
+  if (user) {
+    console.log('User found, processing user data...');
     console.log('User data:', {
       id: user?.id,
       email: user?.email,
       user_metadata: user?.user_metadata
     });
     
-    if (session.provider_token) {
+    // Note: provider_token is not available in getUser() response
+    // We'll use the user metadata instead
+    if (user.user_metadata?.provider_id) {
       try {
-        console.log('Attempting Discord API call...');
-        console.log('Provider token exists:', !!session.provider_token);
-        console.log('Provider token length:', session.provider_token?.length);
+        console.log('Using user metadata for Discord data...');
+        console.log('Provider ID exists:', !!user.user_metadata.provider_id);
         
-        const discordResponse = await axios.get('https://discord.com/api/users/@me', {
-          headers: { Authorization: `Bearer ${session.provider_token}` },
-        });
-        const discordUser = discordResponse.data;
+        // Use the metadata we already have instead of making API calls
+        const discordUser = {
+          id: user.user_metadata.provider_id,
+          username: user.user_metadata.full_name,
+          global_name: user.user_metadata.custom_claims?.global_name,
+          avatar: user.user_metadata.avatar_url
+        };
         console.log('Discord user data:', {
           id: discordUser.id,
           username: discordUser.username,
@@ -599,14 +601,10 @@ app.get('/get-user', async (req, res) => {
         });
         
         // Handle modern Discord username format (no discriminator)
-        const username = discordUser.discriminator && discordUser.discriminator !== '0' 
-          ? `${discordUser.username}#${discordUser.discriminator}`
-          : discordUser.global_name || discordUser.username;
+        const username = discordUser.global_name || discordUser.username;
         
-        // Handle avatar URL construction
-        const avatarUrl = discordUser.avatar 
-          ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png?size=128`
-          : `https://cdn.discordapp.com/embed/avatars/${discordUser.discriminator % 5}.png`;
+        // Use the avatar URL from metadata (already includes full URL)
+        const avatarUrl = discordUser.avatar;
 
         const result = {
           username: username,
@@ -645,11 +643,10 @@ app.get('/get-user', async (req, res) => {
     
     res.json(fallbackResult);
   } else {
-    console.log('No session found, returning null');
-    console.log('Session check details:', {
-      hasSession: !!session,
-      sessionUser: session?.user,
-      sessionError: session?.error
+    console.log('No user found, returning null');
+    console.log('User check details:', {
+      hasUser: !!user,
+      userError: userError
     });
     res.json(null);
   }
