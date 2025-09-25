@@ -144,6 +144,43 @@ app.get('/test-discord', async (req, res) => {
   }
 });
 
+// Test route to manually create a session
+app.get('/test-session', async (req, res) => {
+  console.log('=== Testing Manual Session Creation ===');
+  
+  const supabase = createServerClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_ANON_KEY,
+    {
+      cookies: {
+        get: (name) => req.cookies[name],
+        set: (name, value, options) => res.cookie(name, value, options),
+        remove: (name, options) => res.clearCookie(name, options),
+      },
+    }
+  );
+
+  try {
+    // Try to get current session
+    const { data: { session }, error } = await supabase.auth.getSession();
+    console.log('Current session:', !!session);
+    console.log('Session error:', error);
+    
+    res.json({
+      hasSession: !!session,
+      sessionData: session,
+      error: error,
+      cookies: req.cookies
+    });
+  } catch (error) {
+    console.error('Session test error:', error);
+    res.json({
+      error: error.message,
+      cookies: req.cookies
+    });
+  }
+});
+
 app.get('/auth/discord', async (req, res) => {
   const baseUrl = process.env.SUPABASE_URL; // Already includes https://
   
