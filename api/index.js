@@ -74,6 +74,12 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
 });
 
+// Test route to verify callback route is working
+app.get('/test-callback', (req, res) => {
+  console.log('=== Test callback route hit ===');
+  res.json({ message: 'Callback route is working', timestamp: new Date().toISOString() });
+});
+
 // Test route to check Discord OAuth configuration
 app.get('/test-discord', async (req, res) => {
   console.log('=== Testing Discord OAuth Configuration ===');
@@ -209,6 +215,14 @@ app.get('/auth/callback', async (req, res) => {
   );
 
   try {
+    // First, try to exchange the code for a session
+    if (req.query.code) {
+      console.log('OAuth code found, exchanging for session');
+      const { data, error } = await supabase.auth.exchangeCodeForSession(req.query.code);
+      console.log('Code exchange result:', { data, error });
+    }
+    
+    // Then get the session
     const { data, error } = await supabase.auth.getSession();
     console.log('Callback session data:', data);
     console.log('Callback session error:', error);
