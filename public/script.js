@@ -176,10 +176,16 @@ async function loadServers() {
           <p>For now, you can manually add your Discord server by providing the server ID.</p>
           <div style="margin-top: 15px;">
             <input type="text" id="manual-server-id" placeholder="Enter your Discord Server ID" style="padding: 10px; margin-right: 10px; border-radius: 5px; border: 1px solid #ccc;">
-            <button class="btn btn-primary" onclick="addManualServer()">Add Server</button>
+            <button class="btn btn-primary" id="add-server-btn">Add Server</button>
           </div>
         </div>
       `;
+      
+      // Add event listener to the button
+      const addServerBtn = document.getElementById('add-server-btn');
+      if (addServerBtn) {
+        addServerBtn.addEventListener('click', addManualServer);
+      }
       
       // Show configured servers if any
       if (responseData.configured_servers && responseData.configured_servers.length > 0) {
@@ -406,8 +412,19 @@ function copyInvite(serverId) {
 }
 
 function addManualServer() {
+  console.log('addManualServer function called');
+  
   const serverIdInput = document.getElementById('manual-server-id');
+  console.log('Server ID input element:', serverIdInput);
+  
+  if (!serverIdInput) {
+    console.error('Server ID input element not found');
+    showMessage('Error: Server ID input not found', 'error');
+    return;
+  }
+  
   const serverId = serverIdInput.value.trim();
+  console.log('Server ID value:', serverId);
   
   if (!serverId) {
     showMessage('Please enter a Discord Server ID', 'error');
@@ -420,6 +437,7 @@ function addManualServer() {
     return;
   }
   
+  console.log('Calling configureServer with:', serverId, 'Manual Server');
   // Configure the server
   configureServer(serverId, 'Manual Server');
 }
