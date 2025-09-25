@@ -346,7 +346,7 @@ function copyInvite(serverId) {
   if (!inviteInput) return;
   
   const inviteUrl = inviteInput.value;
-  if (inviteUrl.includes('setup-required') || inviteUrl.includes('unknown')) {
+  if (inviteUrl.endsWith('/invite/setup-required?affiliate=unknown')) {
     showMessage('Please configure your server first.', 'error');
     return;
   }
