@@ -109,6 +109,10 @@ app.get('/auth/discord', (req, res) => {
     'SUPABASE_ANON_KEY': process.env.SUPABASE_ANON_KEY ? 'exists' : 'missing'
   });
   
+  // Check if we can access Supabase auth settings
+  console.log('Supabase auth URL should be:', `${baseUrl}/auth/v1/authorize`);
+  console.log('Discord callback URL should be:', `${baseUrl}/auth/v1/callback`);
+  
   res.redirect(redirectUrl);
 });
 
