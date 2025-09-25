@@ -32,14 +32,18 @@ app.get('/auth/discord', (req, res) => {
   // Use dynamic redirect URL based on the request host
   const protocol = req.headers['x-forwarded-proto'] || 'https';
   const host = req.headers['x-forwarded-host'] || req.headers.host;
-  const redirectTo = encodeURIComponent(`${protocol}://${host}/dashboard.html`);
+  const redirectTo = encodeURIComponent(`${protocol}://${host}/auth/callback`);
   const redirectUrl = `${baseUrl}/auth/v1/authorize?provider=discord&redirect_to=${redirectTo}`;
   console.log('Discord OAuth redirect URL:', redirectUrl);
   res.redirect(redirectUrl);
 });
 
-// Handle post-authentication and dashboard
-app.get('/dashboard.html', async (req, res, next) => {
+// Handle OAuth callback
+app.get('/auth/callback', async (req, res) => {
+  console.log('=== OAuth callback received ===');
+  console.log('Callback query params:', req.query);
+  console.log('Callback cookies:', req.cookies);
+  
   const supabase = createServerClient(
     process.env.SUPABASE_URL,
     process.env.SUPABASE_ANON_KEY,
@@ -52,8 +56,59 @@ app.get('/dashboard.html', async (req, res, next) => {
     }
   );
 
+  try {
+    const { data, error } = await supabase.auth.getSession();
+    console.log('Callback session data:', data);
+    console.log('Callback session error:', error);
+    
+    if (data.session) {
+      console.log('Session found in callback, redirecting to dashboard');
+      res.redirect('/dashboard.html');
+    } else {
+      console.log('No session in callback, redirecting to home');
+      res.redirect('/');
+    }
+  } catch (error) {
+    console.error('Error in callback:', error);
+    res.redirect('/');
+  }
+});
+
+// Handle post-authentication and dashboard
+app.get('/dashboard.html', async (req, res, next) => {
+  console.log('=== /dashboard.html endpoint called ===');
+  console.log('Dashboard request cookies:', req.cookies);
+  console.log('Dashboard request query:', req.query);
+  console.log('Dashboard request headers:', {
+    'x-forwarded-for': req.headers['x-forwarded-for'],
+    'x-forwarded-host': req.headers['x-forwarded-host'],
+    'referer': req.headers.referer
+  });
+  
+  const supabase = createServerClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_ANON_KEY,
+    {
+      cookies: {
+        get: (name) => {
+          const value = req.cookies[name];
+          console.log(`Dashboard getting cookie ${name}:`, value ? 'exists' : 'missing');
+          return value;
+        },
+        set: (name, value, options) => res.cookie(name, value, options),
+        remove: (name, options) => res.clearCookie(name, options),
+      },
+    }
+  );
+
   const { data: { session } } = await supabase.auth.getSession();
-  if (!session) return res.redirect('/');
+  console.log('Dashboard session exists:', !!session);
+  console.log('Dashboard session user:', session?.user?.id);
+  
+  if (!session) {
+    console.log('No session found in dashboard, redirecting to home');
+    return res.redirect('/');
+  }
 
   // Sync Discord user data
   const { data: { user } } = await supabase.auth.getUser();
