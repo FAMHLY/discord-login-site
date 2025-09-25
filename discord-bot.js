@@ -1,6 +1,3 @@
-// Load environment variables
-require('dotenv').config();
-
 const { Client, GatewayIntentBits, PermissionFlagsBits } = require('discord.js');
 const express = require('express');
 const cors = require('cors');
@@ -20,6 +17,14 @@ app.use(cors());
 // Bot configuration
 const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
 const PORT = process.env.PORT || 3000;
+
+// Debug environment variables
+console.log('Environment check:', {
+  BOT_TOKEN_EXISTS: !!BOT_TOKEN,
+  BOT_TOKEN_LENGTH: BOT_TOKEN ? BOT_TOKEN.length : 0,
+  PORT: PORT,
+  NODE_ENV: process.env.NODE_ENV
+});
 
 // Bot ready event
 client.once('ready', () => {
