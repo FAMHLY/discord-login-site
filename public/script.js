@@ -167,16 +167,18 @@ async function loadServers() {
     
     // Handle setup_required message
     if (responseData.setup_required) {
-      // Show OAuth setup message
-      const oauthMessage = `
-        <div class="error">
-          <h4>Discord OAuth Setup Required</h4>
-          <p>To automatically fetch your Discord servers, we need to configure additional OAuth permissions.</p>
-          <p><strong>Discord User ID:</strong> ${responseData.discord_user_id}</p>
-          <p>For now, you can manually add your Discord server by providing the server ID.</p>
-          <div style="margin-top: 15px;">
-            <input type="text" id="manual-server-id" placeholder="Enter your Discord Server ID" style="padding: 10px; margin-right: 10px; border-radius: 5px; border: 1px solid #ccc;">
+      // Show server addition interface
+      const serverAdditionInterface = `
+        <div class="server-addition-card">
+          <h4>Add Discord Server</h4>
+          <p>Add your Discord server to start generating invite links and managing your community.</p>
+          <p><strong>Your Discord ID:</strong> ${responseData.discord_user_id}</p>
+          <div class="server-input-section">
+            <input type="text" id="manual-server-id" placeholder="Enter your Discord Server ID" class="server-id-input">
             <button class="btn btn-primary" id="add-server-btn">Add Server</button>
+          </div>
+          <div class="help-text">
+            <p><small>💡 <strong>How to find your Server ID:</strong> Right-click your server name in Discord → "Copy Server ID"</small></p>
           </div>
         </div>
       `;
@@ -199,7 +201,7 @@ async function loadServers() {
         `;
       }
       
-      serversList.innerHTML = oauthMessage + configuredServersHtml;
+      serversList.innerHTML = serverAdditionInterface + configuredServersHtml;
       
       // Add event listener to the add server button
       const addServerBtn = document.getElementById('add-server-btn');

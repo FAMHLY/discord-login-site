@@ -603,6 +603,69 @@ header {
   box-shadow: 0 2px 8px rgba(67, 181, 129, 0.3);
 }
 
+.server-addition-card {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  padding: 20px;
+  margin: 20px 0;
+  backdrop-filter: blur(10px);
+}
+
+.server-addition-card h4 {
+  color: white;
+  margin-bottom: 10px;
+  font-size: 1.2rem;
+}
+
+.server-addition-card p {
+  color: rgba(255, 255, 255, 0.9);
+  margin-bottom: 15px;
+  line-height: 1.5;
+}
+
+.server-input-section {
+  display: flex;
+  gap: 10px;
+  margin: 15px 0;
+  align-items: center;
+}
+
+.server-id-input {
+  flex: 1;
+  padding: 12px 15px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  font-size: 14px;
+  backdrop-filter: blur(5px);
+}
+
+.server-id-input::placeholder {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.server-id-input:focus {
+  outline: none;
+  border-color: #7289da;
+  box-shadow: 0 0 0 2px rgba(114, 137, 218, 0.3);
+}
+
+.help-text {
+  margin-top: 10px;
+  padding: 10px;
+  background: rgba(114, 137, 218, 0.1);
+  border-radius: 6px;
+  border-left: 3px solid #7289da;
+}
+
+.help-text p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.9rem;
+}
+
 @media (max-width: 768px) {
   .servers-list {
     grid-template-columns: 1fr;
@@ -610,6 +673,15 @@ header {
   
   .invite-links {
     grid-template-columns: 1fr;
+  }
+  
+  .server-input-section {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .server-id-input {
+    margin-bottom: 10px;
   }
   
   .section-header {
