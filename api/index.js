@@ -164,6 +164,8 @@ app.get('/auth/discord', async (req, res) => {
   console.log('Decoded redirect_to:', decodeURIComponent(redirectTo));
   console.log('Supabase base URL:', baseUrl);
   console.log('Expected callback URL:', decodeURIComponent(redirectTo));
+  console.log('=== IMPORTANT: Make sure this URL is added to Discord OAuth redirects ===');
+  console.log('Discord OAuth redirect URL should be:', decodeURIComponent(redirectTo));
   
   // Also try to get current Supabase auth settings
   console.log('Environment variables check:', {
@@ -203,6 +205,12 @@ app.get('/auth/callback', async (req, res) => {
     'referer': req.headers.referer,
     'host': req.headers.host
   });
+  console.log('=== DEBUGGING INFO ===');
+  console.log('Has code parameter:', !!req.query.code);
+  console.log('Has error parameter:', !!req.query.error);
+  console.log('Has state parameter:', !!req.query.state);
+  console.log('All query parameters:', Object.keys(req.query));
+  console.log('Full URL:', req.protocol + '://' + req.get('host') + req.originalUrl);
   
   const supabase = createServerClient(
     process.env.SUPABASE_URL,
