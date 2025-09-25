@@ -822,6 +822,7 @@ app.post('/api/servers/:serverId/configure', async (req, res) => {
     // Generate a real Discord invite code
     let inviteCode = null;
     let actualInviteUrl = null;
+    let targetGuild = null;
     
     // Try to create a real Discord invite if bot is available
     if (process.env.DISCORD_BOT_TOKEN) {
@@ -830,7 +831,7 @@ app.post('/api/servers/:serverId/configure', async (req, res) => {
         
         // Get available guilds for the bot
         const availableGuilds = await getDiscordGuilds();
-        const targetGuild = availableGuilds.find(g => g.id === serverId);
+        targetGuild = availableGuilds.find(g => g.id === serverId);
         
         if (targetGuild) {
           // Use the actual Discord server name and icon
