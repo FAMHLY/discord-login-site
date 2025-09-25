@@ -29,12 +29,26 @@ app.get('/', (req, res) => {
 
 app.get('/auth/discord', (req, res) => {
   const baseUrl = process.env.SUPABASE_URL; // Already includes https://
-  // Use dynamic redirect URL based on the request host
-  const protocol = req.headers['x-forwarded-proto'] || 'https';
-  const host = req.headers['x-forwarded-host'] || req.headers.host;
-  const redirectTo = encodeURIComponent(`${protocol}://${host}/auth/callback`);
+  
+  // For Vercel deployment, use the actual domain
+  let redirectTo;
+  if (process.env.VERCEL_URL) {
+    // Production Vercel deployment
+    redirectTo = encodeURIComponent(`https://${process.env.VERCEL_URL}/auth/callback`);
+  } else if (req.headers.host && req.headers.host.includes('vercel.app')) {
+    // Fallback for Vercel deployments
+    redirectTo = encodeURIComponent(`https://${req.headers.host}/auth/callback`);
+  } else {
+    // Local development
+    const protocol = req.headers['x-forwarded-proto'] || 'https';
+    const host = req.headers['x-forwarded-host'] || req.headers.host;
+    redirectTo = encodeURIComponent(`${protocol}://${host}/auth/callback`);
+  }
+  
   const redirectUrl = `${baseUrl}/auth/v1/authorize?provider=discord&redirect_to=${redirectTo}`;
   console.log('Discord OAuth redirect URL:', redirectUrl);
+  console.log('VERCEL_URL:', process.env.VERCEL_URL);
+  console.log('Request host:', req.headers.host);
   res.redirect(redirectUrl);
 });
 
