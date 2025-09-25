@@ -100,7 +100,7 @@ app.get('/test-discord', async (req, res) => {
   }
 });
 
-app.get('/auth/discord', (req, res) => {
+app.get('/auth/discord', async (req, res) => {
   const baseUrl = process.env.SUPABASE_URL; // Already includes https://
   
   console.log('=== Discord OAuth Debug ===');
