@@ -170,15 +170,16 @@ async function loadServers() {
       // Show server addition interface
       const serverAdditionInterface = `
         <div class="server-addition-card">
-          <h4>Add Discord Server</h4>
-          <p>Add your Discord server to start generating invite links and managing your community.</p>
-          <p><strong>Your Discord ID:</strong> ${responseData.discord_user_id}</p>
+          <div class="add-server-header">
+            <h4>Add Discord Server</h4>
+            <span class="discord-id">ID: ${responseData.discord_user_id}</span>
+          </div>
           <div class="server-input-section">
-            <input type="text" id="manual-server-id" placeholder="Enter your Discord Server ID" class="server-id-input">
+            <input type="text" id="manual-server-id" placeholder="Enter Discord Server ID" class="server-id-input">
             <button class="btn btn-primary" id="add-server-btn">Add Server</button>
           </div>
           <div class="help-text">
-            <p><small>💡 <strong>How to find your Server ID:</strong> Right-click your server name in Discord → "Copy Server ID"</small></p>
+            <small>💡 Right-click server name in Discord → "Copy Server ID"</small>
           </div>
         </div>
       `;
