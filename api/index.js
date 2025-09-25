@@ -102,6 +102,8 @@ app.get('/dashboard.html', async (req, res, next) => {
 });
 
 app.get('/get-user', async (req, res) => {
+  console.log('=== /get-user endpoint called ===');
+  
   const supabase = createServerClient(
     process.env.SUPABASE_URL,
     process.env.SUPABASE_ANON_KEY,
@@ -115,15 +117,32 @@ app.get('/get-user', async (req, res) => {
   );
 
   const { data: { session } } = await supabase.auth.getSession();
+  console.log('Session exists:', !!session);
+  console.log('Session user:', session?.user?.id);
+  console.log('Provider token exists:', !!session?.provider_token);
+  
   if (session && session.user) {
     const { data: { user } } = await supabase.auth.getUser();
+    console.log('User data:', {
+      id: user?.id,
+      email: user?.email,
+      user_metadata: user?.user_metadata
+    });
     
     if (session.provider_token) {
       try {
+        console.log('Attempting Discord API call...');
         const discordResponse = await axios.get('https://discord.com/api/users/@me', {
           headers: { Authorization: `Bearer ${session.provider_token}` },
         });
         const discordUser = discordResponse.data;
+        console.log('Discord user data:', {
+          id: discordUser.id,
+          username: discordUser.username,
+          global_name: discordUser.global_name,
+          discriminator: discordUser.discriminator,
+          avatar: discordUser.avatar
+        });
         
         // Handle modern Discord username format (no discriminator)
         const username = discordUser.discriminator && discordUser.discriminator !== '0' 
@@ -135,23 +154,28 @@ app.get('/get-user', async (req, res) => {
           ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png?size=128`
           : `https://cdn.discordapp.com/embed/avatars/${discordUser.discriminator % 5}.png`;
 
-        res.json({
+        const result = {
           username: username,
           avatar: avatarUrl,
-        });
+        };
+        console.log('Returning Discord data:', result);
+        res.json(result);
         return;
       } catch (error) {
-        console.error('Error fetching Discord user data:', error);
+        console.error('Error fetching Discord user data:', error.response?.data || error.message);
         // Fall through to fallback
       }
     }
     
     // Fallback to basic user info from Supabase
-    res.json({
+    const fallbackResult = {
       username: user.user_metadata?.full_name || user.email || 'Discord User',
       avatar: user.user_metadata?.avatar_url || '',
-    });
+    };
+    console.log('Returning fallback data:', fallbackResult);
+    res.json(fallbackResult);
   } else {
+    console.log('No session found, returning null');
     res.json(null);
   }
 });

@@ -1,16 +1,24 @@
 document.addEventListener('DOMContentLoaded', () => {
+  console.log('=== Frontend: Loading user data ===');
+  
   fetch('/get-user')
     .then(res => {
+      console.log('Response status:', res.status);
       if (!res.ok) {
         throw new Error(`HTTP error! status: ${res.status}`);
       }
       return res.json();
     })
     .then(user => {
+      console.log('Received user data:', user);
+      
       const avatarImg = document.getElementById('avatar');
       const usernameSpan = document.getElementById('username');
       
       if (user && user.username) {
+        console.log('Setting username:', user.username);
+        console.log('Setting avatar:', user.avatar);
+        
         // Set username
         usernameSpan.textContent = user.username;
         
@@ -26,6 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
           avatarImg.style.display = 'block';
         }
       } else {
+        console.log('No user data or username found');
         // User not logged in
         avatarImg.src = '';
         avatarImg.style.display = 'none';
