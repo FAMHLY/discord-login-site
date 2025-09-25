@@ -194,6 +194,7 @@ async function loadServers() {
             owner: true,
             permissions: 0,
             invite_code: server.invite_code,
+            owner_discord_id: server.owner_discord_id,
             is_configured: true,
             created_at: server.created_at
           })).join('')}
