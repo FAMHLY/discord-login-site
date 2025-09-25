@@ -2,14 +2,14 @@
   "version": 2,
   "builds": [
     {
-      "src": "discord-bot.js",
+      "src": "api/index.js",
       "use": "@vercel/node"
     }
   ],
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "discord-bot.js"
+      "dest": "api/index.js"
     }
   ]
 }

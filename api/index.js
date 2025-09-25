@@ -5,26 +5,59 @@ const path = require('path');
 const { createServerClient } = require('@supabase/ssr');
 const cookieParser = require('cookie-parser');
 const crypto = require('crypto');
-const { Client, GatewayIntentBits, PermissionFlagsBits } = require('discord.js');
+// Discord REST API for serverless environment
 
 const app = express();
 
-// Initialize Discord bot
-const discordClient = new Client({
-    intents: [GatewayIntentBits.Guilds]
-});
+// Discord REST API functions for serverless environment
+async function getDiscordGuild(guildId) {
+    try {
+        const response = await axios.get(`https://discord.com/api/guilds/${guildId}`, {
+            headers: {
+                'Authorization': `Bot ${process.env.DISCORD_BOT_TOKEN}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        return response.data;
+    } catch (error) {
+        console.error('Error fetching Discord guild:', error.response?.data || error.message);
+        return null;
+    }
+}
 
-// Bot ready event
-discordClient.once('ready', () => {
-    console.log(`🤖 Discord bot ready! Logged in as ${discordClient.user.tag}`);
-    console.log(`📊 Serving ${discordClient.guilds.cache.size} servers`);
-});
+async function getDiscordChannels(guildId) {
+    try {
+        const response = await axios.get(`https://discord.com/api/guilds/${guildId}/channels`, {
+            headers: {
+                'Authorization': `Bot ${process.env.DISCORD_BOT_TOKEN}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        return response.data;
+    } catch (error) {
+        console.error('Error fetching Discord channels:', error.response?.data || error.message);
+        return [];
+    }
+}
 
-// Login the bot if token is available
-if (process.env.DISCORD_BOT_TOKEN) {
-    discordClient.login(process.env.DISCORD_BOT_TOKEN).catch(console.error);
-} else {
-    console.log('⚠️ DISCORD_BOT_TOKEN not found - bot functionality disabled');
+async function createDiscordInvite(channelId, options = {}) {
+    try {
+        const response = await axios.post(`https://discord.com/api/channels/${channelId}/invites`, {
+            max_age: options.maxAge || 0,
+            max_uses: options.maxUses || 0,
+            temporary: options.temporary || false,
+            unique: options.unique || true
+        }, {
+            headers: {
+                'Authorization': `Bot ${process.env.DISCORD_BOT_TOKEN}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        return response.data;
+    } catch (error) {
+        console.error('Error creating Discord invite:', error.response?.data || error.message);
+        throw error;
+    }
 }
 
 // Add middleware for parsing JSON request bodies
@@ -888,17 +921,17 @@ app.post('/api/servers/:serverId/invite', async (req, res) => {
       return res.status(404).json({ error: 'Server not configured' });
     }
 
-    // Check if Discord bot is available
-    if (!discordClient.isReady()) {
+    // Check if Discord bot token is available
+    if (!process.env.DISCORD_BOT_TOKEN) {
       return res.status(503).json({ 
         success: false, 
-        error: 'Discord bot is not ready. Please try again in a moment.',
-        details: 'The bot is still connecting to Discord.'
+        error: 'Discord bot is not configured. Please add DISCORD_BOT_TOKEN environment variable.',
+        details: 'The bot token is required to generate invites.'
       });
     }
 
-    // Find the guild (server) using the integrated Discord bot
-    const guild = discordClient.guilds.cache.get(serverId);
+    // Get Discord guild information
+    const guild = await getDiscordGuild(serverId);
     if (!guild) {
       return res.status(404).json({ 
         success: false, 
@@ -907,39 +940,45 @@ app.post('/api/servers/:serverId/invite', async (req, res) => {
       });
     }
 
-    // Check if bot has permission to create invites
-    const botMember = guild.members.cache.get(discordClient.user.id);
-    if (!botMember.permissions.has(PermissionFlagsBits.CreateInstantInvite)) {
+    // Get channels for the guild
+    const channels = await getDiscordChannels(serverId);
+    const textChannels = channels.filter(ch => ch.type === 0); // Text channels
+
+    if (textChannels.length === 0) {
       return res.status(403).json({ 
         success: false, 
-        error: 'Bot does not have permission to create invites in this server.',
-        details: 'Please ensure the bot has "Create Instant Invite" permission.'
+        error: 'No text channels found in this server.',
+        details: 'The bot needs access to at least one text channel to create invites.'
       });
     }
 
-    // Find a suitable channel to create the invite
-    const channel = guild.channels.cache.find(ch => 
-      ch.type === 0 && // Text channel
-      ch.permissionsFor(botMember).has(PermissionFlagsBits.CreateInstantInvite)
-    );
+    // Try to create invite in the first available text channel
+    let invite = null;
+    let lastError = null;
 
-    if (!channel) {
-      return res.status(403).json({ 
-        success: false, 
-        error: 'No suitable channel found for creating invites.',
-        details: 'The bot needs access to at least one text channel with invite permissions.'
-      });
+    for (const channel of textChannels) {
+      try {
+        invite = await createDiscordInvite(channel.id, {
+          maxAge: 0, // Never expires
+          maxUses: 0, // Unlimited uses
+          unique: true
+        });
+        console.log(`✅ Created invite for ${guild.name} in channel ${channel.name}: ${invite.url}`);
+        break;
+      } catch (error) {
+        lastError = error;
+        console.log(`❌ Failed to create invite in channel ${channel.name}:`, error.response?.data || error.message);
+        continue;
+      }
     }
 
-    // Create the invite using the integrated Discord bot
-    const invite = await channel.createInvite({
-      maxAge: 0, // Never expires
-      maxUses: 0, // Unlimited uses
-      unique: true,
-      reason: 'Generated via Discord Monetization Platform'
-    });
-
-    console.log(`✅ Created invite for ${guild.name}: ${invite.url}`);
+    if (!invite) {
+      return res.status(403).json({ 
+        success: false, 
+        error: 'Unable to create invite in any channel.',
+        details: lastError?.response?.data?.message || 'The bot may not have permission to create invites.'
+      });
+    }
 
     // Update database with the new invite code
     const { error: updateError } = await supabase
@@ -987,13 +1026,30 @@ app.post('/api/servers/:serverId/invite', async (req, res) => {
 });
 
 // Health check endpoint for Discord bot
-app.get('/api/bot/health', (req, res) => {
+app.get('/api/bot/health', async (req, res) => {
+  const hasToken = !!process.env.DISCORD_BOT_TOKEN;
+  let botInfo = null;
+  
+  if (hasToken) {
+    try {
+      // Test bot token by getting bot user info
+      const response = await axios.get('https://discord.com/api/users/@me', {
+        headers: {
+          'Authorization': `Bot ${process.env.DISCORD_BOT_TOKEN}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      botInfo = response.data;
+    } catch (error) {
+      console.error('Bot token test failed:', error.response?.data || error.message);
+    }
+  }
+  
   res.json({
     status: 'healthy',
-    bot_ready: discordClient.isReady(),
-    bot_user: discordClient.user ? discordClient.user.tag : null,
-    servers: discordClient.guilds.cache.size,
-    has_token: !!process.env.DISCORD_BOT_TOKEN
+    bot_configured: hasToken,
+    bot_user: botInfo ? `${botInfo.username}#${botInfo.discriminator}` : null,
+    has_token: hasToken
   });
 });
 
