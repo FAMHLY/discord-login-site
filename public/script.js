@@ -11,6 +11,10 @@ document.addEventListener('DOMContentLoaded', () => {
     })
     .then(user => {
       console.log('Received user data:', user);
+      console.log('User object keys:', user ? Object.keys(user) : 'null');
+      console.log('User username:', user?.username);
+      console.log('User avatar:', user?.avatar);
+      console.log('User discord_id:', user?.discord_id);
       
       // Header elements
       const headerAvatarImg = document.getElementById('avatar');
@@ -21,6 +25,15 @@ document.addEventListener('DOMContentLoaded', () => {
       const profileAvatarImg = document.getElementById('profile-avatar');
       const profileUsernameH3 = document.getElementById('profile-username');
       const profileIdP = document.getElementById('profile-id');
+      
+      console.log('Found elements:', {
+        headerAvatarImg: !!headerAvatarImg,
+        headerUsernameSpan: !!headerUsernameSpan,
+        userIdSpan: !!userIdSpan,
+        profileAvatarImg: !!profileAvatarImg,
+        profileUsernameH3: !!profileUsernameH3,
+        profileIdP: !!profileIdP
+      });
       
       if (user && user.username) {
         console.log('Setting username:', user.username);
