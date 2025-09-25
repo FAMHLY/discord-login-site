@@ -1027,6 +1027,9 @@ app.post('/api/servers/:serverId/invite', async (req, res) => {
     }
 
     // Update database with the new invite code
+    console.log('Updating database with invite code:', invite.code);
+    console.log('For server ID:', serverId, 'and user ID:', user.id);
+    
     const { error: updateError } = await supabase
       .from('discord_servers')
       .update({ 
@@ -1038,6 +1041,8 @@ app.post('/api/servers/:serverId/invite', async (req, res) => {
 
     if (updateError) {
       console.error('Error updating database with invite code:', updateError);
+    } else {
+      console.log('Successfully updated database with invite code:', invite.code);
     }
 
     res.json({ 
@@ -1230,14 +1235,18 @@ app.get('/invite/:inviteCode', async (req, res) => {
 
   try {
     // Look up the invite code in the database
+    console.log('Looking up invite code in database:', inviteCode);
     const { data: server, error } = await supabase
       .from('discord_servers')
       .select('*')
       .eq('invite_code', inviteCode)
       .single();
 
+    console.log('Database query result:', { server, error });
+    
     if (error || !server) {
       console.log('Invite code not found:', inviteCode);
+      console.log('Database error:', error);
       return res.status(404).send(`
         <html>
           <head><title>Invite Not Found</title></head>
