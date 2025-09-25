@@ -1,5 +1,4 @@
 const express = require('express');
-const session = require('express-session'); // Optional fallback
 const axios = require('axios');
 require('dotenv').config();
 const path = require('path');
@@ -11,15 +10,7 @@ const app = express();
 // Add cookie-parser for Supabase cookies
 app.use(cookieParser());
 
-// Optional session middleware (only if SESSION_SECRET is provided)
-if (process.env.SESSION_SECRET) {
-  app.use(session({
-    secret: process.env.SESSION_SECRET,
-    resave: false,
-    saveUninitialized: false,
-    cookie: { secure: process.env.NODE_ENV === 'production' }
-  }));
-}
+// Session management is handled by Supabase
 
 // Handle dashboard.html route specifically (before static file serving)
 app.get('/dashboard.html', async (req, res, next) => {
@@ -445,14 +436,10 @@ app.get('/logout', async (req, res) => {
   );
 
   await supabase.auth.signOut();
-  req.session.destroy();
   res.redirect('/');
 });
 
-app.use('/dashboard.html', (req, res, next) => {
-  if (!req.session.user) return res.redirect('/');
-  next();
-});
+// Dashboard authentication is handled by the route itself
 
 // Catch-all route for any other OAuth callbacks
 app.get('*', (req, res, next) => {
