@@ -187,7 +187,6 @@ async function loadServers() {
       let configuredServersHtml = '';
       if (responseData.configured_servers && responseData.configured_servers.length > 0) {
         configuredServersHtml = `
-          <h4>Your Configured Servers</h4>
           ${responseData.configured_servers.map(server => createServerCard({
             id: server.discord_server_id,
             name: server.server_name,
