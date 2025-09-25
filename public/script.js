@@ -300,6 +300,9 @@ async function configureServer(serverId, serverName) {
   console.log('Configuring server:', serverId, serverName);
   
   try {
+    console.log('Making API call to:', `/api/servers/${serverId}/configure`);
+    console.log('Request body:', JSON.stringify({ serverName: serverName }));
+    
     const response = await fetch(`/api/servers/${serverId}/configure`, {
       method: 'POST',
       headers: {
@@ -310,12 +313,16 @@ async function configureServer(serverId, serverName) {
       })
     });
     
+    console.log('Response received:', response.status, response.statusText);
+    
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const errorText = await response.text();
+      console.error('Response error:', errorText);
+      throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
     }
     
     const result = await response.json();
-    console.log('Server configured:', result);
+    console.log('Server configured successfully:', result);
     
     // Show success message
     showMessage('Server configured successfully!', 'success');
@@ -325,7 +332,8 @@ async function configureServer(serverId, serverName) {
     
   } catch (error) {
     console.error('Error configuring server:', error);
-    showMessage('Failed to configure server. Please try again.', 'error');
+    console.error('Error details:', error.message);
+    showMessage(`Failed to configure server: ${error.message}`, 'error');
   }
 }
 
