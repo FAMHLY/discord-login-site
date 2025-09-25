@@ -528,6 +528,9 @@ app.get('/get-user', async (req, res) => {
     if (session.provider_token) {
       try {
         console.log('Attempting Discord API call...');
+        console.log('Provider token exists:', !!session.provider_token);
+        console.log('Provider token length:', session.provider_token?.length);
+        
         const discordResponse = await axios.get('https://discord.com/api/users/@me', {
           headers: { Authorization: `Bearer ${session.provider_token}` },
         });
@@ -560,8 +563,12 @@ app.get('/get-user', async (req, res) => {
         return;
       } catch (error) {
         console.error('Error fetching Discord user data:', error.response?.data || error.message);
+        console.error('Error status:', error.response?.status);
+        console.error('Error headers:', error.response?.headers);
         // Fall through to fallback
       }
+    } else {
+      console.log('No provider token available');
     }
     
     // Fallback to basic user info from Supabase
@@ -623,15 +630,26 @@ app.get('/api/servers', async (req, res) => {
   }
 
   try {
+    console.log('Session provider token exists:', !!session.provider_token);
+    console.log('Session user ID:', session.user.id);
+    
+    if (!session.provider_token) {
+      console.error('No provider token available for Discord API call');
+      return res.status(400).json({ error: 'No Discord access token available. Please re-authenticate.' });
+    }
+
     // Get user's Discord servers via Discord API
+    console.log('Making Discord API call to fetch guilds...');
     const discordResponse = await axios.get('https://discord.com/api/users/@me/guilds', {
       headers: { Authorization: `Bearer ${session.provider_token}` },
     });
 
     const discordServers = discordResponse.data;
-    console.log('Discord servers:', discordServers.length);
+    console.log('Discord servers fetched:', discordServers.length);
+    console.log('Discord servers data:', discordServers);
 
     // Get servers from our database
+    console.log('Querying database for configured servers...');
     const { data: dbServers, error } = await supabase
       .from('discord_servers')
       .select('*')
@@ -639,8 +657,10 @@ app.get('/api/servers', async (req, res) => {
 
     if (error) {
       console.error('Database error:', error);
-      return res.status(500).json({ error: 'Database error' });
+      return res.status(500).json({ error: 'Database error', details: error.message });
     }
+
+    console.log('Database servers found:', dbServers?.length || 0);
 
     // Merge Discord API data with our database data
     const servers = discordServers.map(server => {
@@ -657,10 +677,22 @@ app.get('/api/servers', async (req, res) => {
       };
     });
 
+    console.log('Returning merged servers data:', servers.length);
     res.json(servers);
   } catch (error) {
     console.error('Error fetching servers:', error);
-    res.status(500).json({ error: 'Failed to fetch servers' });
+    console.error('Error response:', error.response?.data);
+    console.error('Error status:', error.response?.status);
+    
+    if (error.response?.status === 401) {
+      return res.status(401).json({ error: 'Discord token expired. Please re-authenticate.' });
+    }
+    
+    res.status(500).json({ 
+      error: 'Failed to fetch servers', 
+      details: error.message,
+      status: error.response?.status 
+    });
   }
 });
 
