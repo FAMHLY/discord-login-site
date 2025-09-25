@@ -562,6 +562,10 @@ app.get('/get-user', async (req, res) => {
           discord_id: discordUser.id,
         };
         console.log('Returning Discord data:', result);
+        
+        // Ensure user exists in server_owners table
+        await ensureServerOwnerExists(supabase, user.id, discordUser.id);
+        
         res.json(result);
         return;
       } catch (error) {
@@ -580,6 +584,13 @@ app.get('/get-user', async (req, res) => {
       avatar: user.user_metadata?.avatar_url || '',
     };
     console.log('Returning fallback data:', fallbackResult);
+    
+    // Ensure user exists in server_owners table even for fallback
+    const discordUserId = user.user_metadata?.provider_id;
+    if (discordUserId) {
+      await ensureServerOwnerExists(supabase, user.id, discordUserId);
+    }
+    
     res.json(fallbackResult);
   } else {
     console.log('No session found, returning null');
@@ -919,5 +930,32 @@ app.get('*', (req, res, next) => {
   // Continue to static file serving
   next();
 });
+
+// Helper function to ensure server_owner exists
+async function ensureServerOwnerExists(supabase, userId, discordUserId) {
+  try {
+    console.log('Ensuring server_owner exists for user:', userId, 'discord:', discordUserId);
+    
+    const { data, error } = await supabase
+      .from('server_owners')
+      .upsert({
+        id: userId,
+        discord_user_id: discordUserId,
+        email: null, // Will be updated if available
+        updated_at: new Date().toISOString()
+      }, { 
+        onConflict: 'id',
+        ignoreDuplicates: false 
+      });
+
+    if (error) {
+      console.error('Error ensuring server_owner exists:', error);
+    } else {
+      console.log('Server_owner ensured successfully');
+    }
+  } catch (error) {
+    console.error('Error in ensureServerOwnerExists:', error);
+  }
+}
 
 module.exports = app;
