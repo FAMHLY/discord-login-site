@@ -12,15 +12,22 @@ const app = express();
 // Discord REST API functions for serverless environment
 async function getDiscordGuild(guildId) {
     try {
+        console.log('Fetching Discord guild with ID:', guildId);
+        console.log('Bot token exists:', !!process.env.DISCORD_BOT_TOKEN);
+        console.log('Bot token length:', process.env.DISCORD_BOT_TOKEN?.length);
+        
         const response = await axios.get(`https://discord.com/api/guilds/${guildId}`, {
             headers: {
                 'Authorization': `Bot ${process.env.DISCORD_BOT_TOKEN}`,
                 'Content-Type': 'application/json'
             }
         });
+        console.log('Discord API response status:', response.status);
         return response.data;
     } catch (error) {
         console.error('Error fetching Discord guild:', error.response?.data || error.message);
+        console.error('Error status:', error.response?.status);
+        console.error('Error headers:', error.response?.headers);
         return null;
     }
 }
@@ -927,12 +934,20 @@ app.post('/api/servers/:serverId/invite', async (req, res) => {
     }
 
     // Get Discord guild information
+    console.log('Attempting to fetch Discord guild with ID:', serverId);
     const guild = await getDiscordGuild(serverId);
+    console.log('Guild fetch result:', guild ? 'Success' : 'Failed');
+    if (guild) {
+      console.log('Guild name:', guild.name);
+      console.log('Guild ID:', guild.id);
+    }
+    
     if (!guild) {
       return res.status(404).json({ 
         success: false, 
         error: 'Server not found or bot not in server. Please add the bot to your Discord server.',
-        details: 'Make sure the bot is added to your server with proper permissions.'
+        details: 'Make sure the bot is added to your server with proper permissions.',
+        serverId: serverId
       });
     }
 
