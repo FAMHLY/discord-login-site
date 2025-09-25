@@ -29,8 +29,12 @@ app.get('/', (req, res) => {
 
 app.get('/auth/discord', (req, res) => {
   const baseUrl = process.env.SUPABASE_URL; // Already includes https://
-  const redirectTo = encodeURIComponent('https://discord-login-site.vercel.app/dashboard.html');
+  // Use dynamic redirect URL based on the request host
+  const protocol = req.headers['x-forwarded-proto'] || 'https';
+  const host = req.headers['x-forwarded-host'] || req.headers.host;
+  const redirectTo = encodeURIComponent(`${protocol}://${host}/dashboard.html`);
   const redirectUrl = `${baseUrl}/auth/v1/authorize?provider=discord&redirect_to=${redirectTo}`;
+  console.log('Discord OAuth redirect URL:', redirectUrl);
   res.redirect(redirectUrl);
 });
 
@@ -103,13 +107,28 @@ app.get('/dashboard.html', async (req, res, next) => {
 
 app.get('/get-user', async (req, res) => {
   console.log('=== /get-user endpoint called ===');
+  console.log('Environment check:', {
+    'SUPABASE_URL exists': !!process.env.SUPABASE_URL,
+    'SUPABASE_ANON_KEY exists': !!process.env.SUPABASE_ANON_KEY,
+    'SUPABASE_URL': process.env.SUPABASE_URL ? 'set' : 'missing'
+  });
+  console.log('Request cookies:', req.cookies);
+  console.log('Request headers:', {
+    'user-agent': req.headers['user-agent'],
+    'x-forwarded-for': req.headers['x-forwarded-for'],
+    'x-forwarded-host': req.headers['x-forwarded-host']
+  });
   
   const supabase = createServerClient(
     process.env.SUPABASE_URL,
     process.env.SUPABASE_ANON_KEY,
     {
       cookies: {
-        get: (name) => req.cookies[name],
+        get: (name) => {
+          const value = req.cookies[name];
+          console.log(`Getting cookie ${name}:`, value ? 'exists' : 'missing');
+          return value;
+        },
         set: (name, value, options) => res.cookie(name, value, options),
         remove: (name, options) => res.clearCookie(name, options),
       },
