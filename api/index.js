@@ -53,23 +53,49 @@ app.get('/dashboard.html', async (req, res, next) => {
 
   // Sync Discord user data
   const { data: { user } } = await supabase.auth.getUser();
-  if (user) {
-    const discordResponse = await axios.get('https://discord.com/api/users/@me', {
-      headers: { Authorization: `Bearer ${session.provider_token}` },
-    });
-    const discordUser = discordResponse.data;
-    req.session.user = {
-      username: `${discordUser.username}#${discordUser.discriminator}`,
-      avatar: `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png?size=128`,
-    };
+  if (user && session.provider_token) {
+    try {
+      const discordResponse = await axios.get('https://discord.com/api/users/@me', {
+        headers: { Authorization: `Bearer ${session.provider_token}` },
+      });
+      const discordUser = discordResponse.data;
+      
+      // Handle modern Discord username format (no discriminator)
+      const username = discordUser.discriminator && discordUser.discriminator !== '0' 
+        ? `${discordUser.username}#${discordUser.discriminator}`
+        : discordUser.global_name || discordUser.username;
+      
+      // Handle avatar URL construction
+      const avatarUrl = discordUser.avatar 
+        ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png?size=128`
+        : `https://cdn.discordapp.com/embed/avatars/${discordUser.discriminator % 5}.png`;
 
-    // Store in Supabase DB
-    await supabase.from('users').upsert({
-      id: user.id,
-      discord_id: discordUser.id,
-      username: `${discordUser.username}#${discordUser.discriminator}`,
-      avatar: `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png?size=128`,
-    }, { onConflict: 'id' });
+      req.session.user = {
+        username: username,
+        avatar: avatarUrl,
+      };
+
+      // Store in Supabase DB
+      await supabase.from('users').upsert({
+        id: user.id,
+        discord_id: discordUser.id,
+        username: username,
+        avatar: avatarUrl,
+      }, { onConflict: 'id' });
+    } catch (error) {
+      console.error('Error fetching Discord user data:', error);
+      // Fallback to basic user info from Supabase
+      req.session.user = {
+        username: user.user_metadata?.full_name || user.email || 'Discord User',
+        avatar: user.user_metadata?.avatar_url || '',
+      };
+    }
+  } else if (user) {
+    // Fallback when no provider token is available
+    req.session.user = {
+      username: user.user_metadata?.full_name || user.email || 'Discord User',
+      avatar: user.user_metadata?.avatar_url || '',
+    };
   }
 
   next();
@@ -91,13 +117,39 @@ app.get('/get-user', async (req, res) => {
   const { data: { session } } = await supabase.auth.getSession();
   if (session && session.user) {
     const { data: { user } } = await supabase.auth.getUser();
-    const discordResponse = await axios.get('https://discord.com/api/users/@me', {
-      headers: { Authorization: `Bearer ${session.provider_token}` },
-    });
-    const discordUser = discordResponse.data;
+    
+    if (session.provider_token) {
+      try {
+        const discordResponse = await axios.get('https://discord.com/api/users/@me', {
+          headers: { Authorization: `Bearer ${session.provider_token}` },
+        });
+        const discordUser = discordResponse.data;
+        
+        // Handle modern Discord username format (no discriminator)
+        const username = discordUser.discriminator && discordUser.discriminator !== '0' 
+          ? `${discordUser.username}#${discordUser.discriminator}`
+          : discordUser.global_name || discordUser.username;
+        
+        // Handle avatar URL construction
+        const avatarUrl = discordUser.avatar 
+          ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png?size=128`
+          : `https://cdn.discordapp.com/embed/avatars/${discordUser.discriminator % 5}.png`;
+
+        res.json({
+          username: username,
+          avatar: avatarUrl,
+        });
+        return;
+      } catch (error) {
+        console.error('Error fetching Discord user data:', error);
+        // Fall through to fallback
+      }
+    }
+    
+    // Fallback to basic user info from Supabase
     res.json({
-      username: `${discordUser.username}#${discordUser.discriminator}`,
-      avatar: `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png?size=128`,
+      username: user.user_metadata?.full_name || user.email || 'Discord User',
+      avatar: user.user_metadata?.avatar_url || '',
     });
   } else {
     res.json(null);

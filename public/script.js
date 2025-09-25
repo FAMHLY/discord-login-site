@@ -1,22 +1,46 @@
 document.addEventListener('DOMContentLoaded', () => {
   fetch('/get-user')
-    .then(res => res.json())
+    .then(res => {
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+      return res.json();
+    })
     .then(user => {
       const avatarImg = document.getElementById('avatar');
       const usernameSpan = document.getElementById('username');
-      if (user) {
-        avatarImg.src = user.avatar || ''; // Set avatar URL or clear if null
-        usernameSpan.textContent = user.username || 'Unknown User'; // Set username or fallback
-        avatarImg.alt = `Profile picture for ${user.username || 'Unknown User'}`; // Update alt text
+      
+      if (user && user.username) {
+        // Set username
+        usernameSpan.textContent = user.username;
+        
+        // Set avatar with fallback
+        if (user.avatar && user.avatar.trim() !== '') {
+          avatarImg.src = user.avatar;
+          avatarImg.alt = `Profile picture for ${user.username}`;
+          avatarImg.style.display = 'block';
+        } else {
+          // Use default Discord avatar or hide
+          avatarImg.src = 'https://cdn.discordapp.com/embed/avatars/0.png';
+          avatarImg.alt = 'Default profile picture';
+          avatarImg.style.display = 'block';
+        }
       } else {
+        // User not logged in
         avatarImg.src = '';
-        usernameSpan.textContent = 'Not Logged In';
+        avatarImg.style.display = 'none';
+        usernameSpan.textContent = 'Not logged in';
         avatarImg.alt = 'No profile picture';
       }
     })
     .catch(error => {
       console.error('Error fetching user data:', error);
-      document.getElementById('avatar').src = '';
-      document.getElementById('username').textContent = 'Error Loading';
+      const avatarImg = document.getElementById('avatar');
+      const usernameSpan = document.getElementById('username');
+      
+      avatarImg.src = '';
+      avatarImg.style.display = 'none';
+      usernameSpan.textContent = 'Error loading user data';
+      avatarImg.alt = 'Error loading profile picture';
     });
 });
