@@ -1236,6 +1236,16 @@ app.get('/invite/:inviteCode', async (req, res) => {
   try {
     // Look up the invite code in the database
     console.log('Looking up invite code in database:', inviteCode);
+    
+    // First, let's try to get all records to see what's in the database
+    const { data: allServers, error: allError } = await supabase
+      .from('discord_servers')
+      .select('*');
+    
+    console.log('All servers in database:', allServers);
+    console.log('All servers error:', allError);
+    
+    // Now try the specific query
     const { data: server, error } = await supabase
       .from('discord_servers')
       .select('*')
