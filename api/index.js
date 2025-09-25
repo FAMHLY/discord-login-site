@@ -1221,6 +1221,7 @@ app.get('/invite/:inviteCode', async (req, res) => {
   console.log('=== Invite redirect called ===');
   console.log('Invite code:', inviteCode);
   
+  // Create a public client for invite lookups (bypasses RLS)
   const supabase = createServerClient(
     process.env.SUPABASE_URL,
     process.env.SUPABASE_ANON_KEY,
