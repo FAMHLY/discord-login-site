@@ -71,6 +71,12 @@ app.get('/test-callback', (req, res) => {
   res.json({ message: 'Callback route is working', timestamp: new Date().toISOString() });
 });
 
+// Test route to verify any route is working
+app.get('/test-any', (req, res) => {
+  console.log('=== Test any route hit ===');
+  res.json({ message: 'Any route is working', timestamp: new Date().toISOString() });
+});
+
 // Test route to check Discord OAuth configuration
 app.get('/test-discord', async (req, res) => {
   console.log('=== Testing Discord OAuth Configuration ===');
@@ -186,6 +192,11 @@ app.get('/auth/callback', async (req, res) => {
   console.log('Callback URL:', req.url);
   console.log('Callback query params:', req.query);
   console.log('Callback cookies:', req.cookies);
+  console.log('Callback headers:', {
+    'user-agent': req.headers['user-agent'],
+    'referer': req.headers.referer,
+    'host': req.headers.host
+  });
   
   // Redirect to dashboard - Supabase has already processed the OAuth
   console.log('Redirecting to dashboard after Supabase OAuth processing');
