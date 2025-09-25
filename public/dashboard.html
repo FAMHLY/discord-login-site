@@ -35,8 +35,27 @@
     </div>
     
     <div class="dashboard-content">
-      <h2>Dashboard Content</h2>
-      <p>This is your dashboard content. Add more here as needed.</p>
+      <h2>Server Management</h2>
+      <p>Manage your Discord servers and generate invite links for your community.</p>
+      
+      <div class="servers-section">
+        <div class="section-header">
+          <h3>Your Discord Servers</h3>
+          <button id="refresh-servers" class="btn btn-secondary">Refresh</button>
+        </div>
+        
+        <div id="servers-list" class="servers-list">
+          <div class="loading">Loading your servers...</div>
+        </div>
+      </div>
+      
+      <div class="invite-section">
+        <h3>Free Tier Invite Links</h3>
+        <p>Generate invite links for users to join your Discord server for free.</p>
+        <div id="invite-links" class="invite-links">
+          <!-- Invite links will be populated here -->
+        </div>
+      </div>
     </div>
   </div>
   <script src="script.js"></script>

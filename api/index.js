@@ -4,6 +4,7 @@ require('dotenv').config();
 const path = require('path');
 const { createServerClient } = require('@supabase/ssr');
 const cookieParser = require('cookie-parser');
+const crypto = require('crypto');
 
 const app = express();
 
@@ -596,6 +597,280 @@ app.get('/logout', async (req, res) => {
 
   await supabase.auth.signOut();
   res.redirect('/');
+});
+
+// ===== SERVER MANAGEMENT API ENDPOINTS =====
+
+// Get user's Discord servers (servers they manage)
+app.get('/api/servers', async (req, res) => {
+  console.log('=== /api/servers endpoint called ===');
+  
+  const supabase = createServerClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_ANON_KEY,
+    {
+      cookies: {
+        get: (name) => req.cookies[name],
+        set: (name, value, options) => res.cookie(name, value, options),
+        remove: (name, options) => res.clearCookie(name, options),
+      },
+    }
+  );
+
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  try {
+    // Get user's Discord servers via Discord API
+    const discordResponse = await axios.get('https://discord.com/api/users/@me/guilds', {
+      headers: { Authorization: `Bearer ${session.provider_token}` },
+    });
+
+    const discordServers = discordResponse.data;
+    console.log('Discord servers:', discordServers.length);
+
+    // Get servers from our database
+    const { data: dbServers, error } = await supabase
+      .from('discord_servers')
+      .select('*')
+      .eq('owner_id', session.user.id);
+
+    if (error) {
+      console.error('Database error:', error);
+      return res.status(500).json({ error: 'Database error' });
+    }
+
+    // Merge Discord API data with our database data
+    const servers = discordServers.map(server => {
+      const dbServer = dbServers.find(db => db.discord_server_id === server.id);
+      return {
+        id: server.id,
+        name: server.name,
+        icon: server.icon ? `https://cdn.discordapp.com/icons/${server.id}/${server.icon}.png` : null,
+        owner: server.owner,
+        permissions: server.permissions,
+        invite_code: dbServer?.invite_code || null,
+        is_configured: !!dbServer,
+        created_at: dbServer?.created_at || null
+      };
+    });
+
+    res.json(servers);
+  } catch (error) {
+    console.error('Error fetching servers:', error);
+    res.status(500).json({ error: 'Failed to fetch servers' });
+  }
+});
+
+// Create or update server configuration
+app.post('/api/servers/:serverId/configure', async (req, res) => {
+  console.log('=== /api/servers/:serverId/configure endpoint called ===');
+  
+  const supabase = createServerClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_ANON_KEY,
+    {
+      cookies: {
+        get: (name) => req.cookies[name],
+        set: (name, value, options) => res.cookie(name, value, options),
+        remove: (name, options) => res.clearCookie(name, options),
+      },
+    }
+  );
+
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  const { serverId } = req.params;
+  const { serverName } = req.body;
+
+  try {
+    // Verify user owns this server
+    const discordResponse = await axios.get('https://discord.com/api/users/@me/guilds', {
+      headers: { Authorization: `Bearer ${session.provider_token}` },
+    });
+
+    const userServers = discordResponse.data;
+    const targetServer = userServers.find(server => server.id === serverId);
+    
+    if (!targetServer) {
+      return res.status(404).json({ error: 'Server not found or not owned by user' });
+    }
+
+    // Generate a unique invite code
+    const inviteCode = crypto.randomBytes(8).toString('hex');
+
+    // Create or update server in database
+    const { data, error } = await supabase
+      .from('discord_servers')
+      .upsert({
+        owner_id: session.user.id,
+        discord_server_id: serverId,
+        server_name: serverName || targetServer.name,
+        invite_code: inviteCode,
+        updated_at: new Date().toISOString()
+      }, { 
+        onConflict: 'discord_server_id',
+        ignoreDuplicates: false 
+      });
+
+    if (error) {
+      console.error('Database error:', error);
+      return res.status(500).json({ error: 'Database error' });
+    }
+
+    res.json({ 
+      success: true, 
+      invite_code: inviteCode,
+      server_name: serverName || targetServer.name
+    });
+  } catch (error) {
+    console.error('Error configuring server:', error);
+    res.status(500).json({ error: 'Failed to configure server' });
+  }
+});
+
+// Generate Discord invite link
+app.post('/api/servers/:serverId/invite', async (req, res) => {
+  console.log('=== /api/servers/:serverId/invite endpoint called ===');
+  
+  const supabase = createServerClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_ANON_KEY,
+    {
+      cookies: {
+        get: (name) => req.cookies[name],
+        set: (name, value, options) => res.cookie(name, value, options),
+        remove: (name, options) => res.clearCookie(name, options),
+      },
+    }
+  );
+
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  const { serverId } = req.params;
+
+  try {
+    // Get server from database
+    const { data: dbServer, error: dbError } = await supabase
+      .from('discord_servers')
+      .select('*')
+      .eq('discord_server_id', serverId)
+      .eq('owner_id', session.user.id)
+      .single();
+
+    if (dbError || !dbServer) {
+      return res.status(404).json({ error: 'Server not configured' });
+    }
+
+    // Create Discord invite via Discord API
+    const inviteData = {
+      max_age: 0, // Never expires
+      max_uses: 0, // Unlimited uses
+      temporary: false,
+      unique: true
+    };
+
+    const discordResponse = await axios.post(
+      `https://discord.com/api/channels/${serverId}/invites`,
+      inviteData,
+      {
+        headers: { 
+          Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}`,
+          'Content-Type': 'application/json'
+        },
+      }
+    );
+
+    const invite = discordResponse.data;
+    const inviteUrl = `https://discord.gg/${invite.code}`;
+
+    res.json({ 
+      success: true, 
+      invite_url: inviteUrl,
+      invite_code: invite.code,
+      expires_at: invite.expires_at
+    });
+  } catch (error) {
+    console.error('Error creating invite:', error);
+    
+    // If bot token method fails, provide a fallback
+    if (error.response?.status === 401 || error.response?.status === 403) {
+      res.json({ 
+        success: false, 
+        error: 'Bot permissions required. Please add the bot to your server with proper permissions.',
+        fallback_url: `https://discord.com/channels/${serverId}`
+      });
+    } else {
+      res.status(500).json({ error: 'Failed to create invite' });
+    }
+  }
+});
+
+// Get server statistics
+app.get('/api/servers/:serverId/stats', async (req, res) => {
+  console.log('=== /api/servers/:serverId/stats endpoint called ===');
+  
+  const supabase = createServerClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_ANON_KEY,
+    {
+      cookies: {
+        get: (name) => req.cookies[name],
+        set: (name, value, options) => res.cookie(name, value, options),
+        remove: (name, options) => res.clearCookie(name, options),
+      },
+    }
+  );
+
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  const { serverId } = req.params;
+
+  try {
+    // Get server from database
+    const { data: dbServer, error: dbError } = await supabase
+      .from('discord_servers')
+      .select('*')
+      .eq('discord_server_id', serverId)
+      .eq('owner_id', session.user.id)
+      .single();
+
+    if (dbError || !dbServer) {
+      return res.status(404).json({ error: 'Server not configured' });
+    }
+
+    // Get basic server info from Discord API
+    const discordResponse = await axios.get(`https://discord.com/api/guilds/${serverId}`, {
+      headers: { Authorization: `Bearer ${session.provider_token}` },
+    });
+
+    const serverInfo = discordResponse.data;
+
+    // TODO: Add more detailed statistics in future phases
+    const stats = {
+      member_count: serverInfo.approximate_member_count || 0,
+      server_name: serverInfo.name,
+      server_icon: serverInfo.icon ? `https://cdn.discordapp.com/icons/${serverId}/${serverInfo.icon}.png` : null,
+      invite_code: dbServer.invite_code,
+      created_at: dbServer.created_at
+    };
+
+    res.json(stats);
+  } catch (error) {
+    console.error('Error fetching server stats:', error);
+    res.status(500).json({ error: 'Failed to fetch server statistics' });
+  }
 });
 
 // Dashboard authentication is handled by the route itself
