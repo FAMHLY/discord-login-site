@@ -60,6 +60,46 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
 });
 
+// Test route to check Discord OAuth configuration
+app.get('/test-discord', async (req, res) => {
+  console.log('=== Testing Discord OAuth Configuration ===');
+  
+  const baseUrl = process.env.SUPABASE_URL;
+  const testUrl = `${baseUrl}/auth/v1/authorize?provider=discord&redirect_to=${encodeURIComponent('https://discord-login-site.vercel.app/auth/callback')}`;
+  
+  console.log('Test Discord OAuth URL:', testUrl);
+  
+  try {
+    const response = await axios.get(testUrl, {
+      timeout: 10000,
+      validateStatus: () => true,
+      maxRedirects: 0 // Don't follow redirects
+    });
+    
+    console.log('Discord OAuth test response:', {
+      status: response.status,
+      headers: response.headers,
+      location: response.headers.location
+    });
+    
+    res.json({
+      success: true,
+      testUrl: testUrl,
+      response: {
+        status: response.status,
+        location: response.headers.location
+      }
+    });
+  } catch (error) {
+    console.log('Discord OAuth test error:', error.message);
+    res.json({
+      success: false,
+      error: error.message,
+      testUrl: testUrl
+    });
+  }
+});
+
 app.get('/auth/discord', (req, res) => {
   const baseUrl = process.env.SUPABASE_URL; // Already includes https://
   
@@ -112,6 +152,20 @@ app.get('/auth/discord', (req, res) => {
   // Check if we can access Supabase auth settings
   console.log('Supabase auth URL should be:', `${baseUrl}/auth/v1/authorize`);
   console.log('Discord callback URL should be:', `${baseUrl}/auth/v1/callback`);
+  
+  // Test if Supabase auth endpoint is accessible
+  try {
+    const testResponse = await axios.get(`${baseUrl}/auth/v1/authorize?provider=discord`, {
+      timeout: 5000,
+      validateStatus: () => true // Accept any status code
+    });
+    console.log('Supabase auth endpoint test:', {
+      status: testResponse.status,
+      accessible: testResponse.status < 500
+    });
+  } catch (error) {
+    console.log('Supabase auth endpoint test failed:', error.message);
+  }
   
   res.redirect(redirectUrl);
 });
