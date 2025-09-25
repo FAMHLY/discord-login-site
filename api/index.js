@@ -8,6 +8,9 @@ const crypto = require('crypto');
 
 const app = express();
 
+// Add middleware for parsing JSON request bodies
+app.use(express.json());
+
 // Add cookie-parser for Supabase cookies
 app.use(cookieParser());
 
