@@ -188,19 +188,21 @@ async function loadServers() {
       let configuredServersHtml = '';
       if (responseData.configured_servers && responseData.configured_servers.length > 0) {
         configuredServersHtml = `
-          ${responseData.configured_servers.map(server => createServerCard({
-            id: server.discord_server_id,
-            name: server.server_name,
-            icon: server.server_icon,
-            server_icon: server.server_icon,
-            user_role: server.user_role,
-            owner: true,
-            permissions: 0,
-            invite_code: server.invite_code,
-            owner_discord_id: server.owner_discord_id,
-            is_configured: true,
-            created_at: server.created_at
-          })).join('')}
+          <div class="server-cards-grid">
+            ${responseData.configured_servers.map(server => createServerCard({
+              id: server.discord_server_id,
+              name: server.server_name,
+              icon: server.server_icon,
+              server_icon: server.server_icon,
+              user_role: server.user_role,
+              owner: true,
+              permissions: 0,
+              invite_code: server.invite_code,
+              owner_discord_id: server.owner_discord_id,
+              is_configured: true,
+              created_at: server.created_at
+            })).join('')}
+          </div>
         `;
       }
       

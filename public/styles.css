@@ -310,6 +310,12 @@ header {
 }
 
 .servers-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.server-cards-grid {
   display: grid;
   gap: 20px;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -717,7 +723,7 @@ header {
 }
 
 @media (max-width: 768px) {
-  .servers-list {
+  .server-cards-grid {
     grid-template-columns: 1fr;
   }
   
