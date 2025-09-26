@@ -729,8 +729,18 @@ header {
 }
 
 @media (max-width: 768px) {
+  .servers-list {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  
   .server-cards-grid {
     grid-template-columns: 1fr;
+    justify-items: center;
+    width: 100%;
+    max-width: 100%;
   }
   
   .invite-links {
@@ -789,12 +799,18 @@ header {
   .main-content {
     padding: 15px;
     box-sizing: border-box;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
   }
   
   .server-card {
     padding: 15px;
-    margin: 0;
+    margin: 0 auto;
     box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
   }
   
   .server-header {
