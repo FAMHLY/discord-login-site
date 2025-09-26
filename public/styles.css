@@ -1,3 +1,7 @@
+* {
+  box-sizing: border-box;
+}
+
 body {
   margin: 0;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -6,6 +10,8 @@ body {
   flex-direction: column;
   min-height: 100vh;
   color: #333;
+  width: 100%;
+  overflow-x: hidden;
 }
 
 .container {
@@ -777,21 +783,25 @@ header {
   .container {
     padding: 10px;
     max-width: 100%;
+    box-sizing: border-box;
   }
   
   .main-content {
     padding: 15px;
+    box-sizing: border-box;
   }
   
   .server-card {
     padding: 15px;
     margin: 0;
+    box-sizing: border-box;
   }
   
   .server-header {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: center;
     gap: 10px;
+    text-align: center;
   }
   
   .server-icon {
@@ -801,14 +811,25 @@ header {
   
   .server-info h4 {
     font-size: 1.1rem;
+    text-align: center;
+    margin: 0;
   }
   
   .server-info p {
     font-size: 0.9rem;
+    text-align: center;
+    margin: 0;
   }
   
   .invite-url-display {
     margin: 12px 0;
+    text-align: center;
+  }
+  
+  .invite-url-display label {
+    text-align: center;
+    display: block;
+    margin-bottom: 8px;
   }
   
   .invite-url-container {
@@ -830,11 +851,12 @@ header {
   .server-stats {
     padding: 12px;
     margin: 12px 0;
+    text-align: center;
   }
   
   .stat-item {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: center;
     gap: 4px;
     margin-bottom: 8px;
   }
@@ -850,11 +872,13 @@ header {
   .server-addition-card {
     padding: 10px;
     margin: 0 0 15px 0;
+    box-sizing: border-box;
+    text-align: center;
   }
   
   .add-server-header {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: center;
     gap: 5px;
   }
   
