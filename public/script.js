@@ -444,7 +444,14 @@ function addServerActionListeners() {
   
   console.log('Adding server action listeners to:', serversList);
   
-  serversList.addEventListener('click', (e) => {
+  // Remove existing event listeners to prevent duplicates
+  serversList.removeEventListener('click', handleServerActionClick);
+  
+  // Add the new event listener
+  serversList.addEventListener('click', handleServerActionClick);
+}
+
+function handleServerActionClick(e) {
     console.log('Click detected on:', e.target);
     const button = e.target.closest('[data-action]');
     console.log('Closest button with data-action:', button);
@@ -460,20 +467,19 @@ function addServerActionListeners() {
     
     console.log('Server action clicked:', action, serverId, serverName);
     
-    switch (action) {
-      case 'configure':
-        configureServer(serverId, serverName);
-        break;
-        case 'remove':
-          removeServer(serverId);
-          break;
-        case 'copy-invite':
-          copyInvite(serverId);
-          break;
-      default:
-        console.log('Unknown action:', action);
-    }
-  });
+  switch (action) {
+    case 'configure':
+      configureServer(serverId, serverName);
+      break;
+    case 'remove':
+      removeServer(serverId);
+      break;
+    case 'copy-invite':
+      copyInvite(serverId);
+      break;
+    default:
+      console.log('Unknown action:', action);
+  }
 }
 
 
