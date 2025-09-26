@@ -772,4 +772,118 @@ header {
   .btn {
     width: 100%;
   }
+  
+  /* Additional mobile optimizations */
+  .container {
+    padding: 10px;
+    max-width: 100%;
+  }
+  
+  .main-content {
+    padding: 15px;
+  }
+  
+  .server-card {
+    padding: 15px;
+    margin: 0;
+  }
+  
+  .server-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  
+  .server-icon {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .server-info h4 {
+    font-size: 1.1rem;
+  }
+  
+  .server-info p {
+    font-size: 0.9rem;
+  }
+  
+  .invite-url-display {
+    margin: 12px 0;
+  }
+  
+  .invite-url-container {
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .invite-url-input {
+    font-size: 0.8rem;
+    padding: 8px 10px;
+  }
+  
+  .btn-copy {
+    width: 100%;
+    padding: 8px 12px;
+    font-size: 0.9rem;
+  }
+  
+  .server-stats {
+    padding: 12px;
+    margin: 12px 0;
+  }
+  
+  .stat-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    margin-bottom: 8px;
+  }
+  
+  .stat-label {
+    font-size: 0.8rem;
+  }
+  
+  .stat-value {
+    font-size: 0.9rem;
+  }
+  
+  .server-addition-card {
+    padding: 10px;
+    margin: 0 0 15px 0;
+  }
+  
+  .add-server-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+  }
+  
+  .add-server-header h4 {
+    font-size: 1rem;
+  }
+  
+  .discord-id {
+    font-size: 0.8rem;
+  }
+  
+  .server-input-section {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  
+  .server-id-input {
+    margin-bottom: 0;
+    padding: 10px 12px;
+    font-size: 0.9rem;
+  }
+  
+  .help-text {
+    padding: 6px 8px;
+    margin-top: 8px;
+  }
+  
+  .help-text p {
+    font-size: 0.75rem;
+  }
 }
