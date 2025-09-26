@@ -889,7 +889,13 @@ app.post('/api/servers/:serverId/configure', async (req, res) => {
             const userRole = await getUserDiscordRole(serverId, userDiscordId);
             console.log('User Discord role:', userRole);
           }
-          
+        } else {
+          // Bot not in server - show instruction
+          actualServerName = 'Add Bot to Server for Full Features';
+          console.log('Bot not in server, showing instruction:', actualServerName);
+        }
+        
+        if (targetGuild) {
           // Get channels for the guild
           const channels = await getDiscordChannels(serverId);
           const textChannels = channels.filter(ch => ch.type === 0);
@@ -944,6 +950,9 @@ app.post('/api/servers/:serverId/configure', async (req, res) => {
       } catch (error) {
         console.log('Could not fetch user role, using default:', userRole);
       }
+    } else if (!targetGuild) {
+      // Bot not in server - show instruction
+      userRole = 'Add Bot to Server';
     }
     
     const { data, error } = await supabase
