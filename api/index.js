@@ -1351,9 +1351,14 @@ async function ensureServerOwnerExists(supabase, userId, discordUserId) {
 // Track invite clicks for affiliate analytics
 async function trackInviteClick(inviteCode, affiliateId = null) {
   try {
+    console.log('=== trackInviteClick called ===');
+    console.log('Invite code:', inviteCode);
+    console.log('Affiliate ID:', affiliateId);
+    
+    // Use service role key for server-side operations that need to bypass RLS
     const supabase = createServerClient(
       process.env.SUPABASE_URL,
-      process.env.SUPABASE_ANON_KEY,
+      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY,
       {
         cookies: {
           get: () => null,
@@ -1364,11 +1369,18 @@ async function trackInviteClick(inviteCode, affiliateId = null) {
     );
 
     // Find the server by invite code
-    const { data: server } = await supabase
+    const { data: server, error: serverError } = await supabase
       .from('discord_servers')
       .select('id, discord_server_id')
       .eq('invite_code', inviteCode)
       .single();
+
+    console.log('Server lookup result:', { server, serverError });
+
+    if (serverError) {
+      console.error('Error finding server by invite code:', serverError);
+      return;
+    }
 
     if (server) {
       // Create affiliate tracking record
@@ -1384,7 +1396,9 @@ async function trackInviteClick(inviteCode, affiliateId = null) {
 
       if (trackingError) {
         console.error('Error creating affiliate tracking record:', trackingError);
+        console.error('Tracking error details:', JSON.stringify(trackingError, null, 2));
       } else {
+        console.log('✅ Successfully created affiliate tracking record');
         // Update server stats
         const { data: currentServer } = await supabase
           .from('discord_servers')
@@ -1419,7 +1433,13 @@ app.get('/invite/:inviteCode', async (req, res) => {
   console.log('Affiliate ID:', affiliate);
   
   // Track the invite click with affiliate information
-  await trackInviteClick(inviteCode, affiliate);
+  try {
+    await trackInviteClick(inviteCode, affiliate);
+    console.log('✅ Click tracking completed successfully');
+  } catch (trackingError) {
+    console.error('❌ Error in click tracking:', trackingError);
+    // Continue with redirect even if tracking fails
+  }
   
   // Create a public client for invite lookups (bypasses RLS)
   const supabase = createServerClient(
