@@ -886,6 +886,7 @@ app.post('/api/servers/:serverId/configure', async (req, res) => {
           actualInviteUrl = botResponse.invite_url;
           actualServerName = botResponse.server_name;
           console.log(`✅ Created real Discord invite: ${actualInviteUrl}`);
+          console.log(`✅ Discord invite code: ${inviteCode}`);
         } else {
           console.log('Bot utility failed:', botResponse.error);
           // Fall through to fallback
