@@ -164,6 +164,7 @@ async function loadServers() {
     
     const responseData = await response.json();
     console.log('Loaded servers response:', responseData);
+    console.log('Configured servers data:', responseData.configured_servers);
     
     // Handle setup_required message
     if (responseData.setup_required) {
@@ -187,9 +188,12 @@ async function loadServers() {
       // Show configured servers if any
       let configuredServersHtml = '';
       if (responseData.configured_servers && responseData.configured_servers.length > 0) {
+        console.log('Creating server cards for configured servers:', responseData.configured_servers);
         configuredServersHtml = `
           <div class="server-cards-grid">
-            ${responseData.configured_servers.map(server => createServerCard({
+            ${responseData.configured_servers.map(server => {
+              console.log('Server data for card creation:', server);
+              return createServerCard({
               id: server.discord_server_id,
               name: server.server_name,
               icon: server.server_icon,
@@ -200,8 +204,13 @@ async function loadServers() {
               invite_code: server.invite_code,
               owner_discord_id: server.owner_discord_id,
               is_configured: true,
-              created_at: server.created_at
-            })).join('')}
+              created_at: server.created_at,
+              total_invite_clicks: server.total_invite_clicks,
+              total_joins: server.total_joins,
+              conversion_rate: server.conversion_rate,
+              monthly_revenue: server.monthly_revenue
+            });
+            }).join('')}
           </div>
         `;
       }
