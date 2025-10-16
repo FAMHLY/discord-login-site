@@ -62,6 +62,69 @@ client.on('guildMemberAdd', async (member) => {
   }
 });
 
+client.on('guildMemberRemove', async (member) => {
+  console.log(`👋 MEMBER LEFT: ${member.user.tag} left ${member.guild.name}`);
+  console.log(`   - User ID: ${member.user.id}`);
+  console.log(`   - Guild ID: ${member.guild.id}`);
+  console.log(`   - Timestamp: ${new Date().toISOString()}`);
+  
+  try {
+    await trackMemberLeave(member);
+  } catch (error) {
+    console.error('Error tracking member leave:', error);
+  }
+});
+
+// Function to track member leaves for affiliate analytics
+async function trackMemberLeave(member) {
+  try {
+    console.log(`📊 Tracking leave for ${member.user.tag} in ${member.guild.name}`);
+    
+    // Find tracking records for this user in this server
+    const { data: userRecords, error: userError } = await supabase
+      .from('affiliate_tracking')
+      .select('*')
+      .eq('discord_server_id', member.guild.id)
+      .eq('user_discord_id', member.user.id)
+      .eq('conversion_status', 'joined')
+      .is('leave_timestamp', null);
+    
+    if (userError) {
+      console.error('Error fetching user tracking records:', userError);
+      return;
+    }
+    
+    if (!userRecords || userRecords.length === 0) {
+      console.log('No tracked join records found for this user - may be organic or untracked');
+      return;
+    }
+    
+    // Update all tracking records for this user to mark as left
+    for (const record of userRecords) {
+      const { error: updateError } = await supabase
+        .from('affiliate_tracking')
+        .update({
+          conversion_status: 'left',
+          leave_timestamp: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', record.id);
+        
+      if (updateError) {
+        console.error('Error updating tracking record for leave:', updateError);
+      } else {
+        console.log(`✅ Updated tracking record ${record.id} to left status`);
+      }
+    }
+    
+    // Recalculate server join count (active members only)
+    await updateServerJoinCount(member.guild.id);
+    
+  } catch (error) {
+    console.error('Error in trackMemberLeave:', error);
+  }
+}
+
 // Function to track member joins for affiliate analytics
 async function trackMemberJoin(member) {
   try {
@@ -138,29 +201,46 @@ async function trackMemberJoin(member) {
   }
 }
 
-// Function to update server join count
+// Function to update server join count (counts only active members)
 async function updateServerJoinCount(guildId) {
   try {
-    console.log(`📊 Updating join count for server: ${guildId}`);
+    console.log(`📊 Recalculating active join count for server: ${guildId}`);
     
-    const { data: currentServer, error: currentError } = await supabase
-      .from('discord_servers')
-      .select('total_joins')
+    // Count only members who joined via affiliate links and are still active
+    const { data: activeMembers, error: countError } = await supabase
+      .from('affiliate_tracking')
+      .select('id')
       .eq('discord_server_id', guildId)
-      .single();
+      .eq('conversion_status', 'joined')
+      .is('leave_timestamp', null);
       
-    if (currentError) {
-      console.error('Error fetching current server stats:', currentError);
+    if (countError) {
+      console.error('Error counting active members:', countError);
       return;
     }
     
-    const currentJoins = currentServer?.total_joins || 0;
-    const newJoinCount = currentJoins + 1;
+    const activeJoinCount = activeMembers ? activeMembers.length : 0;
+    
+    // Also count organic joins that are still active
+    const { data: organicMembers, error: organicError } = await supabase
+      .from('affiliate_tracking')
+      .select('id')
+      .eq('discord_server_id', guildId)
+      .eq('invite_code', 'ORGANIC')
+      .eq('conversion_status', 'joined')
+      .is('leave_timestamp', null);
+      
+    if (organicError) {
+      console.error('Error counting organic members:', organicError);
+    }
+    
+    const organicCount = organicMembers ? organicMembers.length : 0;
+    const totalActiveJoins = activeJoinCount + organicCount;
     
     const { error: updateError } = await supabase
       .from('discord_servers')
       .update({ 
-        total_joins: newJoinCount,
+        total_joins: totalActiveJoins,
         updated_at: new Date().toISOString()
       })
       .eq('discord_server_id', guildId);
@@ -170,7 +250,7 @@ async function updateServerJoinCount(guildId) {
       return;
     }
     
-    console.log(`✅ Updated server join count from ${currentJoins} to ${newJoinCount}`);
+    console.log(`✅ Updated server join count to ${totalActiveJoins} (${activeJoinCount} affiliate + ${organicCount} organic)`);
     await updateConversionRate(guildId);
     
   } catch (error) {
@@ -178,12 +258,13 @@ async function updateServerJoinCount(guildId) {
   }
 }
 
-// Function to update conversion rate
+// Function to update conversion rate (based on active members only)
 async function updateConversionRate(guildId) {
   try {
+    // Get all tracking records for this server
     const { data: trackingStats, error: trackingError } = await supabase
       .from('affiliate_tracking')
-      .select('conversion_status')
+      .select('conversion_status, invite_code')
       .eq('discord_server_id', guildId);
       
     if (trackingError) {
@@ -191,10 +272,15 @@ async function updateConversionRate(guildId) {
       return;
     }
     
-    const totalClicks = trackingStats.length;
-    const totalJoins = trackingStats.filter(record => record.conversion_status === 'joined').length;
+    // Count only affiliate clicks (exclude organic joins)
+    const affiliateClicks = trackingStats.filter(record => record.invite_code !== 'ORGANIC').length;
     
-    const conversionRate = totalClicks > 0 ? ((totalJoins / totalClicks) * 100) : 0;
+    // Count only active joins (not those who left)
+    const activeJoins = trackingStats.filter(record => 
+      record.conversion_status === 'joined'
+    ).length;
+    
+    const conversionRate = affiliateClicks > 0 ? ((activeJoins / affiliateClicks) * 100) : 0;
     
     const { error: updateError } = await supabase
       .from('discord_servers')
@@ -207,7 +293,7 @@ async function updateConversionRate(guildId) {
     if (updateError) {
       console.error('Error updating conversion rate:', updateError);
     } else {
-      console.log(`✅ Updated conversion rate to ${conversionRate.toFixed(2)}% (${totalJoins}/${totalClicks})`);
+      console.log(`✅ Updated conversion rate to ${conversionRate.toFixed(2)}% (${activeJoins} active joins/${affiliateClicks} clicks)`);
     }
     
   } catch (error) {
