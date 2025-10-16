@@ -1057,75 +1057,74 @@ app.post('/api/servers/:serverId/invite', async (req, res) => {
     }
 
     // Use the new bot API endpoint for invite generation
-    try {
-      console.log('Creating invite using bot API...');
-      
-      const botResponse = await axios.post(`${process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000'}/api/bot/generate-invite`, {
-        serverId: serverId,
-        maxAge: 0,
-        maxUses: 0
+    console.log('Creating invite using bot API...');
+    
+    const botResponse = await axios.post(`${process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000'}/api/bot/generate-invite`, {
+      serverId: serverId,
+      maxAge: 0,
+      maxUses: 0
+    });
+    
+    if (!botResponse.data.success) {
+      return res.status(botResponse.status || 500).json({
+        success: false,
+        error: botResponse.data.error || 'Failed to create invite',
+        details: botResponse.data.error || 'Unknown error occurred'
       });
-      
-      if (!botResponse.data.success) {
-        return res.status(botResponse.status || 500).json({
-          success: false,
-          error: botResponse.data.error || 'Failed to create invite',
-          details: botResponse.data.error || 'Unknown error occurred'
-        });
-      }
-      
-      const invite = botResponse.data;
-      console.log(`✅ Created invite via bot API: ${invite.invite_url}`);
-
-      // Update database with the new invite code
-      console.log('Updating database with invite code:', invite.invite_code);
-      console.log('For server ID:', serverId, 'and user ID:', user.id);
-      
-      const { error: updateError } = await supabase
-        .from('discord_servers')
-        .update({ 
-          invite_code: invite.invite_code,
-          updated_at: new Date().toISOString()
-        })
-        .eq('discord_server_id', serverId)
-        .eq('owner_id', user.id);
-
-      if (updateError) {
-        console.error('Error updating database with invite code:', updateError);
-      } else {
-        console.log('Successfully updated database with invite code:', invite.invite_code);
-      }
-
-      res.json({ 
-        success: true, 
-        invite_url: invite.invite_url,
-        invite_code: invite.invite_code
-      });
-      
-    } catch (error) {
-      console.error('Error creating invite via bot API:', error.response?.data || error.message);
-      
-      // Handle specific Discord API errors
-      if (error.response?.status === 404) {
-        res.status(404).json({ 
-          success: false, 
-          error: 'Server not found or bot not in server. Please add the bot to your Discord server.',
-          details: 'Make sure the bot is added to your server with proper permissions.'
-        });
-      } else if (error.response?.status === 403) {
-        res.status(403).json({ 
-          success: false, 
-          error: 'Bot does not have permission to create invites in this server.',
-          details: 'Please ensure the bot has "Create Instant Invite" permission.'
-        });
-      } else {
-        res.status(500).json({ 
-          success: false,
-          error: 'Failed to create invite',
-          details: error.response?.data?.error || error.message
-        });
-      }
     }
+    
+    const invite = botResponse.data;
+    console.log(`✅ Created invite via bot API: ${invite.invite_url}`);
+
+    // Update database with the new invite code
+    console.log('Updating database with invite code:', invite.invite_code);
+    console.log('For server ID:', serverId, 'and user ID:', user.id);
+    
+    const { error: updateError } = await supabase
+      .from('discord_servers')
+      .update({ 
+        invite_code: invite.invite_code,
+        updated_at: new Date().toISOString()
+      })
+      .eq('discord_server_id', serverId)
+      .eq('owner_id', user.id);
+
+    if (updateError) {
+      console.error('Error updating database with invite code:', updateError);
+    } else {
+      console.log('Successfully updated database with invite code:', invite.invite_code);
+    }
+
+    res.json({ 
+      success: true, 
+      invite_url: invite.invite_url,
+      invite_code: invite.invite_code
+    });
+    
+  } catch (error) {
+    console.error('Error creating invite via bot API:', error.response?.data || error.message);
+    
+    // Handle specific Discord API errors
+    if (error.response?.status === 404) {
+      res.status(404).json({ 
+        success: false, 
+        error: 'Server not found or bot not in server. Please add the bot to your Discord server.',
+        details: 'Make sure the bot is added to your server with proper permissions.'
+      });
+    } else if (error.response?.status === 403) {
+      res.status(403).json({ 
+        success: false, 
+        error: 'Bot does not have permission to create invites in this server.',
+        details: 'Please ensure the bot has "Create Instant Invite" permission.'
+      });
+    } else {
+      res.status(500).json({ 
+        success: false,
+        error: 'Failed to create invite',
+        details: error.response?.data?.error || error.message
+      });
+    }
+  }
 });
 
 // Health check endpoint for Discord bot (redirects to bot API)
