@@ -293,7 +293,6 @@ async function checkBotHealth() {
 }
 
 module.exports = {
-    createBotClient,
     generateDiscordInvite,
     getServerInfo,
     getAllServers,
