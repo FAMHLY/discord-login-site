@@ -1,0 +1,204 @@
+<!-- Add this to your dashboard.html to show subscription options -->
+<div class="subscription-section" id="subscription-section" style="display: none;">
+  <h3>🚀 Upgrade Your Discord Server</h3>
+  <p>Unlock premium features and monetize your community!</p>
+  
+  <div class="subscription-plans">
+    <div class="plan-card">
+      <h4>🔴 Free Tier</h4>
+      <div class="price">$0<span>/month</span></div>
+      <ul class="features">
+        <li>Basic affiliate tracking</li>
+        <li>Standard analytics</li>
+        <li>Community support</li>
+      </ul>
+      <div class="current-plan">Current Plan</div>
+    </div>
+    
+    <div class="plan-card premium">
+      <h4>🟢 Premium Tier</h4>
+      <div class="price">$9.99<span>/month</span></div>
+      <ul class="features">
+        <li>🟢 Premium role in Discord</li>
+        <li>📊 Advanced analytics</li>
+        <li>🎯 Priority support</li>
+        <li>💎 Exclusive features</li>
+      </ul>
+      <button class="btn btn-premium" onclick="upgradeToPremium()">
+        Upgrade to Premium
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+// Add this JavaScript to handle subscription upgrades
+async function upgradeToPremium() {
+  const serverId = getCurrentServerId(); // You'll need to implement this
+  const priceId = 'price_1SIzTLFSRfDsx8GKL2BP9o3Q'; // Your actual Stripe price ID
+  
+  try {
+    const response = await fetch('/api/stripe/create-checkout', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        serverId: serverId,
+        priceId: priceId
+      })
+    });
+
+    const result = await response.json();
+    
+    if (result.success) {
+      // Redirect to Stripe checkout
+      window.location.href = result.url;
+    } else {
+      alert('Failed to create checkout session: ' + result.error);
+    }
+  } catch (error) {
+    console.error('Error creating checkout session:', error);
+    alert('Error creating checkout session: ' + error.message);
+  }
+}
+
+// Check subscription status when page loads
+async function checkSubscriptionStatus() {
+  const serverId = getCurrentServerId();
+  if (!serverId) return;
+  
+  try {
+    const response = await fetch(`/api/stripe/subscriptions/${serverId}`);
+    const result = await response.json();
+    
+    if (result.success && result.subscriptions.length > 0) {
+      // User has active subscription
+      showPremiumStatus();
+    } else {
+      // User doesn't have subscription
+      showUpgradeOptions();
+    }
+  } catch (error) {
+    console.error('Error checking subscription status:', error);
+  }
+}
+
+function showPremiumStatus() {
+  const subscriptionSection = document.getElementById('subscription-section');
+  subscriptionSection.innerHTML = `
+    <div class="premium-status">
+      <h3>🟢 Premium Active</h3>
+      <p>You have premium access to this Discord server!</p>
+      <div class="premium-features">
+        <span class="feature">🟢 Premium Role</span>
+        <span class="feature">📊 Advanced Analytics</span>
+        <span class="feature">🎯 Priority Support</span>
+      </div>
+    </div>
+  `;
+  subscriptionSection.style.display = 'block';
+}
+
+function showUpgradeOptions() {
+  const subscriptionSection = document.getElementById('subscription-section');
+  subscriptionSection.style.display = 'block';
+}
+
+// Call this when the page loads
+document.addEventListener('DOMContentLoaded', checkSubscriptionStatus);
+</script>
+
+<style>
+.subscription-section {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 2rem;
+  border-radius: 12px;
+  margin: 2rem 0;
+}
+
+.subscription-plans {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  margin-top: 1.5rem;
+}
+
+.plan-card {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 2rem;
+  border-radius: 8px;
+  text-align: center;
+  position: relative;
+}
+
+.plan-card.premium {
+  background: rgba(0, 255, 0, 0.2);
+  border: 2px solid #00FF00;
+}
+
+.price {
+  font-size: 2rem;
+  font-weight: bold;
+  margin: 1rem 0;
+}
+
+.price span {
+  font-size: 1rem;
+  opacity: 0.8;
+}
+
+.features {
+  list-style: none;
+  padding: 0;
+  margin: 1.5rem 0;
+}
+
+.features li {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.btn-premium {
+  background: #00FF00;
+  color: #000;
+  border: none;
+  padding: 1rem 2rem;
+  border-radius: 6px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-premium:hover {
+  background: #00CC00;
+  transform: translateY(-2px);
+}
+
+.current-plan {
+  background: rgba(255, 255, 255, 0.2);
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  margin-top: 1rem;
+}
+
+.premium-status {
+  text-align: center;
+}
+
+.premium-features {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.feature {
+  background: rgba(0, 255, 0, 0.2);
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-size: 0.9rem;
+}
+</style>
