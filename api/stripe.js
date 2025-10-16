@@ -2,11 +2,21 @@
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const { createClient } = require('@supabase/supabase-js');
 
-// Initialize Supabase client
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+// Initialize Supabase client with error handling
+let supabase = null;
+try {
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.warn('Supabase environment variables not found - Stripe integration will be limited');
+  } else {
+    supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+    console.log('✅ Supabase client initialized for Stripe integration');
+  }
+} catch (error) {
+  console.error('Failed to initialize Supabase client:', error);
+}
 
 // Standardized role names
 const PAID_ROLE_NAME = '🟢 Paid Member';
@@ -75,6 +85,11 @@ async function handleSubscriptionCreated(subscription) {
       return { success: false, error: 'Missing server ID' };
     }
 
+    if (!supabase) {
+      console.warn('Supabase client not available - skipping database operations');
+      return { success: true, subscriptionId: subscription.id, warning: 'Database not available' };
+    }
+
     // Store subscription in database
     const { error: dbError } = await supabase
       .from('subscriptions')
@@ -116,6 +131,11 @@ async function handleSubscriptionDeleted(subscription) {
     
     const serverId = subscription.metadata.discord_server_id;
     
+    if (!supabase) {
+      console.warn('Supabase client not available - skipping database operations');
+      return { success: true, warning: 'Database not available' };
+    }
+    
     // Update subscription status in database
     const { error: dbError } = await supabase
       .from('subscriptions')
@@ -147,6 +167,11 @@ async function handleSubscriptionDeleted(subscription) {
 async function updateServerConversionRate(serverId) {
   try {
     console.log(`📊 Updating conversion rate for server: ${serverId}`);
+    
+    if (!supabase) {
+      console.warn('Supabase client not available - skipping conversion rate update');
+      return;
+    }
     
     // Get active subscription count for this server
     const { data: activeSubscriptions, error: subError } = await supabase
@@ -203,6 +228,11 @@ async function updateServerConversionRate(serverId) {
  */
 async function getCustomerSubscriptions(customerId, serverId) {
   try {
+    if (!supabase) {
+      console.warn('Supabase client not available - returning empty subscriptions');
+      return { success: true, subscriptions: [] };
+    }
+    
     const { data: subscriptions, error } = await supabase
       .from('subscriptions')
       .select('*')
