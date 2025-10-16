@@ -1297,10 +1297,10 @@ async function trackInviteClick(inviteCode, affiliateId = null) {
     console.log('Invite code:', inviteCode);
     console.log('Affiliate ID:', affiliateId);
     
-    // Use service role key for server-side operations that need to bypass RLS
+    // Use anon key with public access for tracking
     const supabase = createServerClient(
       process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY,
+      process.env.SUPABASE_ANON_KEY,
       {
         cookies: {
           get: () => null,
@@ -1341,22 +1341,43 @@ async function trackInviteClick(inviteCode, affiliateId = null) {
         console.error('Tracking error details:', JSON.stringify(trackingError, null, 2));
       } else {
         console.log('✅ Successfully created affiliate tracking record');
-        // Update server stats
-        const { data: currentServer } = await supabase
-          .from('discord_servers')
-          .select('total_invite_clicks')
-          .eq('discord_server_id', server.discord_server_id)
-          .single();
-
-        const currentClicks = currentServer?.total_invite_clicks || 0;
+        // Update server stats - get current count and increment
+        console.log('Updating server click count...');
         
-        await supabase
-          .from('discord_servers')
-          .update({ 
-            total_invite_clicks: currentClicks + 1,
-            updated_at: new Date().toISOString()
-          })
-          .eq('discord_server_id', server.discord_server_id);
+        try {
+          // Get current count
+          const { data: currentServer, error: currentServerError } = await supabase
+            .from('discord_servers')
+            .select('total_invite_clicks')
+            .eq('discord_server_id', server.discord_server_id)
+            .single();
+
+          if (currentServerError) {
+            console.error('Error getting current server stats:', currentServerError);
+            console.error('Current server error details:', JSON.stringify(currentServerError, null, 2));
+          } else {
+            const currentClicks = currentServer?.total_invite_clicks || 0;
+            console.log(`Current clicks: ${currentClicks}, incrementing to: ${currentClicks + 1}`);
+            
+            // Update the count
+            const { error: updateError } = await supabase
+              .from('discord_servers')
+              .update({ 
+                total_invite_clicks: currentClicks + 1,
+                updated_at: new Date().toISOString()
+              })
+              .eq('discord_server_id', server.discord_server_id);
+              
+            if (updateError) {
+              console.error('Error updating server click count:', updateError);
+              console.error('Update error details:', JSON.stringify(updateError, null, 2));
+            } else {
+              console.log('✅ Successfully updated server click count');
+            }
+          }
+        } catch (updateError) {
+          console.error('Exception during server count update:', updateError);
+        }
         
         console.log('Tracked affiliate invite click for server:', server.discord_server_id, 'affiliate:', affiliateId);
       }
