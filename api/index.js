@@ -908,6 +908,18 @@ app.post('/api/servers/:serverId/configure', async (req, res) => {
     console.log('User metadata:', user.user_metadata);
     console.log('Provider ID:', user.user_metadata?.provider_id);
     
+    // Check if there's existing tracking data for this server
+    const { data: existingTracking, error: trackingCheckError } = await supabase
+      .from('affiliate_tracking')
+      .select('id, affiliate_id, click_timestamp, conversion_status')
+      .eq('discord_server_id', serverId);
+    
+    if (trackingCheckError) {
+      console.error('Error checking existing tracking data:', trackingCheckError);
+    } else if (existingTracking && existingTracking.length > 0) {
+      console.log(`📊 Found ${existingTracking.length} existing tracking records for this server`);
+    }
+    
     // Get server icon URL if available
     let serverIconUrl = null;
     if (targetGuild && targetGuild.icon) {
@@ -951,11 +963,18 @@ app.post('/api/servers/:serverId/configure', async (req, res) => {
     }
 
     console.log('Server configured successfully in database');
+    
+    // If there was existing tracking data, log the restoration
+    if (existingTracking && existingTracking.length > 0) {
+      console.log(`✅ Restored ${existingTracking.length} affiliate tracking records for server ${serverId}`);
+    }
+    
     res.json({ 
       success: true, 
       invite_code: inviteCode,
       server_name: actualServerName,
-      server_id: serverId
+      server_id: serverId,
+      tracking_restored: existingTracking ? existingTracking.length : 0
     });
   } catch (error) {
     console.error('Error configuring server:', error);
@@ -989,7 +1008,20 @@ app.delete('/api/servers/:serverId', async (req, res) => {
   try {
     console.log('Removing server:', serverId, 'for user:', user.id);
     
-    // Delete server from database
+    // Check if there's existing affiliate tracking data
+    const { data: existingTracking, error: trackingCheckError } = await supabase
+      .from('affiliate_tracking')
+      .select('id, affiliate_id, click_timestamp')
+      .eq('discord_server_id', serverId)
+      .limit(1);
+
+    if (trackingCheckError) {
+      console.error('Error checking tracking data:', trackingCheckError);
+    } else if (existingTracking && existingTracking.length > 0) {
+      console.log(`⚠️ Warning: Server has ${existingTracking.length}+ affiliate tracking records that will be preserved`);
+    }
+    
+    // Delete server configuration (tracking data will be preserved)
     const { error } = await supabase
       .from('discord_servers')
       .delete()
@@ -1001,10 +1033,11 @@ app.delete('/api/servers/:serverId', async (req, res) => {
       return res.status(500).json({ error: 'Database error', details: error.message });
     }
 
-    console.log('Server removed successfully');
+    console.log('Server configuration removed successfully (tracking data preserved)');
     res.json({ 
       success: true, 
-      message: 'Server removed successfully'
+      message: 'Server removed successfully. Your affiliate tracking data has been preserved and will be restored if you re-add this server.',
+      tracking_preserved: existingTracking && existingTracking.length > 0
     });
   } catch (error) {
     console.error('Error removing server:', error);
