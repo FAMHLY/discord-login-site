@@ -3,6 +3,7 @@ require('dotenv').config();
 const { Client, GatewayIntentBits } = require('discord.js');
 const { createClient } = require('@supabase/supabase-js');
 const express = require('express');
+const { ensureStandardizedRoles, assignMemberRole, updateAllMemberRoles } = require('./role-manager');
 
 console.log('🚀 Railway Complete Bot Starting...');
 console.log('Environment check:');
@@ -40,13 +41,22 @@ app.get('/health', (req, res) => {
 });
 
 // Discord bot events
-client.once('clientReady', () => {
+client.once('clientReady', async () => {
   console.log(`✅ Bot logged in as ${client.user.tag}`);
   console.log(`📊 Connected to ${client.guilds.cache.size} servers`);
   
-  client.guilds.cache.forEach(guild => {
+  // Ensure standardized roles exist in all servers
+  for (const [guildId, guild] of client.guilds.cache) {
     console.log(`   - ${guild.name} (${guild.id}) - ${guild.memberCount} members`);
-  });
+    
+    try {
+      console.log(`🔧 Setting up standardized roles for ${guild.name}...`);
+      await ensureStandardizedRoles(guild);
+      console.log(`✅ Standardized roles ready for ${guild.name}`);
+    } catch (error) {
+      console.error(`❌ Failed to setup roles for ${guild.name}:`, error);
+    }
+  }
 });
 
 client.on('guildMemberAdd', async (member) => {
@@ -56,9 +66,19 @@ client.on('guildMemberAdd', async (member) => {
   console.log(`   - Timestamp: ${new Date().toISOString()}`);
   
   try {
+    // Track the join
     await trackMemberJoin(member);
+    
+    // Assign appropriate role based on subscription status
+    console.log(`🎭 Assigning role to new member: ${member.user.tag}`);
+    const roleResult = await assignMemberRole(member, member.guild.id);
+    if (roleResult.success) {
+      console.log(`✅ Assigned ${roleResult.roleName} role to ${member.user.tag}`);
+    } else {
+      console.error(`❌ Failed to assign role to ${member.user.tag}:`, roleResult.error);
+    }
   } catch (error) {
-    console.error('Error tracking member join:', error);
+    console.error('Error handling member join:', error);
   }
 });
 

@@ -11,9 +11,20 @@
       "config": {
         "maxDuration": 30
       }
+    },
+    {
+      "src": "api/stripe-webhook.js",
+      "use": "@vercel/node",
+      "config": {
+        "maxDuration": 30
+      }
     }
   ],
   "routes": [
+    {
+      "src": "/api/stripe/webhook",
+      "dest": "api/stripe-webhook.js"
+    },
     {
       "src": "/api/bot/(.*)",
       "dest": "api/bot.js"

@@ -5,6 +5,11 @@ const path = require('path');
 const { createServerClient } = require('@supabase/ssr');
 const cookieParser = require('cookie-parser');
 const crypto = require('crypto');
+const { 
+  createCheckoutSession, 
+  createOrGetCustomer, 
+  getCustomerSubscriptions 
+} = require('./stripe');
 // Discord REST API for serverless environment
 
 const app = express();
@@ -1551,6 +1556,140 @@ app.get('/invite/:inviteCode', async (req, res) => {
         </body>
       </html>
     `);
+  }
+});
+
+// ===== STRIPE INTEGRATION ENDPOINTS =====
+
+// Create Stripe checkout session for server subscription
+app.post('/api/stripe/create-checkout', async (req, res) => {
+  console.log('=== /api/stripe/create-checkout endpoint called ===');
+  
+  const supabase = createServerClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_ANON_KEY,
+    {
+      cookies: {
+        get: (name) => req.cookies[name],
+        set: (name, value, options) => res.cookie(name, value, options),
+        remove: (name, options) => res.clearCookie(name, options),
+      },
+    }
+  );
+
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError || !user) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  try {
+    const { serverId, priceId } = req.body;
+    
+    if (!serverId || !priceId) {
+      return res.status(400).json({ error: 'Server ID and Price ID are required' });
+    }
+
+    console.log(`Creating checkout session for server: ${serverId}, price: ${priceId}`);
+
+    // Get user's email and Discord ID
+    const email = user.email;
+    const discordUserId = user.user_metadata?.provider_id;
+
+    if (!email || !discordUserId) {
+      return res.status(400).json({ error: 'User email or Discord ID not found' });
+    }
+
+    // Create or get Stripe customer
+    const customerResult = await createOrGetCustomer(discordUserId, email);
+    if (!customerResult.success) {
+      return res.status(500).json({ error: 'Failed to create customer', details: customerResult.error });
+    }
+
+    // Get server info
+    const { data: server, error: serverError } = await supabase
+      .from('discord_servers')
+      .select('server_name')
+      .eq('discord_server_id', serverId)
+      .eq('owner_id', user.id)
+      .single();
+
+    if (serverError || !server) {
+      return res.status(404).json({ error: 'Server not found or not owned by user' });
+    }
+
+    // Create checkout session
+    const successUrl = `${req.protocol}://${req.get('host')}/dashboard?subscription=success`;
+    const cancelUrl = `${req.protocol}://${req.get('host')}/dashboard?subscription=cancelled`;
+
+    const checkoutResult = await createCheckoutSession(
+      customerResult.customerId,
+      serverId,
+      server.server_name,
+      priceId,
+      successUrl,
+      cancelUrl
+    );
+
+    if (!checkoutResult.success) {
+      return res.status(500).json({ error: 'Failed to create checkout session', details: checkoutResult.error });
+    }
+
+    res.json({
+      success: true,
+      sessionId: checkoutResult.sessionId,
+      url: checkoutResult.url
+    });
+
+  } catch (error) {
+    console.error('Error creating checkout session:', error);
+    res.status(500).json({ error: 'Failed to create checkout session', details: error.message });
+  }
+});
+
+// Get customer's subscriptions for a server
+app.get('/api/stripe/subscriptions/:serverId', async (req, res) => {
+  console.log('=== /api/stripe/subscriptions/:serverId endpoint called ===');
+  
+  const supabase = createServerClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_ANON_KEY,
+    {
+      cookies: {
+        get: (name) => req.cookies[name],
+        set: (name, value, options) => res.cookie(name, value, options),
+        remove: (name, options) => res.clearCookie(name, options),
+      },
+    }
+  );
+
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError || !user) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  try {
+    const { serverId } = req.params;
+    const discordUserId = user.user_metadata?.provider_id;
+
+    if (!discordUserId) {
+      return res.status(400).json({ error: 'Discord user ID not found' });
+    }
+
+    // Get customer's subscriptions for this server
+    const subscriptionResult = await getCustomerSubscriptions(discordUserId, serverId);
+    
+    if (!subscriptionResult.success) {
+      return res.status(500).json({ error: 'Failed to fetch subscriptions', details: subscriptionResult.error });
+    }
+
+    res.json({
+      success: true,
+      subscriptions: subscriptionResult.subscriptions
+    });
+
+  } catch (error) {
+    console.error('Error fetching subscriptions:', error);
+    res.status(500).json({ error: 'Failed to fetch subscriptions', details: error.message });
   }
 });
 
