@@ -24,7 +24,9 @@ const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMembers,
-    GatewayIntentBits.GuildPresences
+    GatewayIntentBits.GuildPresences,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent
   ]
 });
 
@@ -36,7 +38,7 @@ app.get('/health', (req, res) => {
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
     guilds: client.guilds.cache.size,
-    intents: 'Guilds, GuildMembers, GuildPresences'
+    intents: 'Guilds, GuildMembers, GuildPresences, GuildMessages, MessageContent'
   });
 });
 
@@ -45,14 +47,20 @@ client.once('clientReady', async () => {
   console.log(`✅ Bot logged in as ${client.user.tag}`);
   console.log(`📊 Connected to ${client.guilds.cache.size} servers`);
   
-  // Ensure standardized roles exist in all servers
+  // Ensure standardized roles exist in all servers and assign roles to existing members
   for (const [guildId, guild] of client.guilds.cache) {
     console.log(`   - ${guild.name} (${guild.id}) - ${guild.memberCount} members`);
     
     try {
       console.log(`🔧 Setting up standardized roles for ${guild.name}...`);
-      await ensureStandardizedRoles(guild);
+      const roleResult = await ensureStandardizedRoles(guild);
       console.log(`✅ Standardized roles ready for ${guild.name}`);
+      
+      // Assign roles to all existing members
+      console.log(`🎭 Assigning roles to all existing members in ${guild.name}...`);
+      const updateResult = await updateAllMemberRoles(guild, guildId);
+      console.log(`✅ Updated ${updateResult.updatedCount} member roles (${updateResult.errorCount} errors)`);
+      
     } catch (error) {
       console.error(`❌ Failed to setup roles for ${guild.name}:`, error);
     }
@@ -92,6 +100,32 @@ client.on('guildMemberRemove', async (member) => {
     await trackMemberLeave(member);
   } catch (error) {
     console.error('Error tracking member leave:', error);
+  }
+});
+
+// Handle message commands for manual role assignment
+client.on('messageCreate', async (message) => {
+  // Only respond to bot owner or server administrators
+  if (message.author.bot) return;
+  
+  // Check if user has administrator permissions or is bot owner
+  const member = message.member;
+  if (!member || !member.permissions.has('Administrator')) return;
+  
+  if (message.content.toLowerCase() === '!assignroles') {
+    try {
+      console.log(`🎭 Manual role assignment requested by ${message.author.tag} in ${message.guild.name}`);
+      
+      await message.reply('🔄 Assigning roles to all members... This may take a moment.');
+      
+      const updateResult = await updateAllMemberRoles(message.guild, message.guild.id);
+      
+      await message.reply(`✅ Role assignment complete! Updated ${updateResult.updatedCount} members (${updateResult.errorCount} errors)`);
+      
+    } catch (error) {
+      console.error('Error in manual role assignment:', error);
+      await message.reply('❌ Error assigning roles. Check bot logs for details.');
+    }
   }
 });
 
