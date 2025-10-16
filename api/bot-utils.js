@@ -6,32 +6,72 @@ async function createBotClient() {
     const client = new Client({
         intents: [
             GatewayIntentBits.Guilds
-        ]
+        ],
+        // Optimize for serverless environment
+        ws: {
+            properties: {
+                $browser: 'Discord iOS'
+            }
+        },
+        // Reduce connection timeouts
+        rest: {
+            timeout: 5000
+        }
     });
     
-    // Add timeout to prevent hanging
+    // Add timeout to prevent hanging (reduced from 10s to 7s for faster failure)
     const loginPromise = client.login(process.env.DISCORD_BOT_TOKEN);
     const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Bot login timeout')), 10000)
+        setTimeout(() => reject(new Error('Bot login timeout')), 7000)
     );
     
-    await Promise.race([loginPromise, timeoutPromise]);
-    return client;
+    try {
+        await Promise.race([loginPromise, timeoutPromise]);
+        
+        // Wait for client to be ready with a shorter timeout
+        const readyPromise = new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => reject(new Error('Bot ready timeout')), 3000);
+            
+            if (client.isReady()) {
+                clearTimeout(timeout);
+                resolve();
+            } else {
+                client.once('clientReady', () => {
+                    clearTimeout(timeout);
+                    resolve();
+                });
+            }
+        });
+        
+        await readyPromise;
+        return client;
+        
+    } catch (error) {
+        // Ensure client is destroyed on error
+        try {
+            client.destroy();
+        } catch (destroyError) {
+            // Ignore destroy errors
+        }
+        throw error;
+    }
 }
 
 // Generate Discord invite for a specific server
-async function generateDiscordInvite(serverId, options = {}) {
+async function generateDiscordInvite(serverId, options = {}, retryCount = 0) {
     const { maxAge = 0, maxUses = 0 } = options;
+    const maxRetries = 2;
     
     if (!process.env.DISCORD_BOT_TOKEN) {
         throw new Error('Discord bot is not configured');
     }
     
-    // Create temporary bot client
-    const client = await createBotClient();
-    
+    let client;
     try {
-        // Wait for the client to be ready
+        // Create temporary bot client
+        client = await createBotClient();
+        
+        // Wait for the client to be ready (already handled in createBotClient)
         if (!client.isReady()) {
             await new Promise(resolve => client.once('clientReady', resolve));
         }
@@ -92,9 +132,35 @@ async function generateDiscordInvite(serverId, options = {}) {
             max_uses: invite.maxUses
         };
         
+    } catch (error) {
+        console.error(`Bot invite generation attempt ${retryCount + 1} failed:`, error.message);
+        
+        // Clean up client on error
+        if (client) {
+            try {
+                client.destroy();
+            } catch (destroyError) {
+                // Ignore destroy errors
+            }
+        }
+        
+        // Retry logic for timeout errors
+        if ((error.message.includes('timeout') || error.message.includes('Bot login timeout')) && retryCount < maxRetries) {
+            console.log(`Retrying bot invite generation (attempt ${retryCount + 2}/${maxRetries + 1})...`);
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+            return generateDiscordInvite(serverId, options, retryCount + 1);
+        }
+        
+        throw error;
     } finally {
         // Always clean up the client
-        client.destroy();
+        if (client) {
+            try {
+                client.destroy();
+            } catch (destroyError) {
+                // Ignore destroy errors
+            }
+        }
     }
 }
 
@@ -105,9 +171,10 @@ async function getServerInfo(serverId) {
     }
     
     // Create temporary bot client
-    const client = await createBotClient();
-    
+    let client;
     try {
+        client = await createBotClient();
+        
         const guild = client.guilds.cache.get(serverId);
         if (!guild) {
             throw new Error('Server not found');
@@ -126,9 +193,18 @@ async function getServerInfo(serverId) {
             }
         };
         
+    } catch (error) {
+        console.error('Error fetching server info:', error.message);
+        throw error;
     } finally {
         // Always clean up the client
-        client.destroy();
+        if (client) {
+            try {
+                client.destroy();
+            } catch (destroyError) {
+                // Ignore destroy errors
+            }
+        }
     }
 }
 
