@@ -288,12 +288,12 @@ function createServerCard(server) {
           <span class="stat-value">${server.total_invite_clicks || 0}</span>
         </div>
         <div class="stat-item">
-          <span class="stat-label">Total Joins:</span>
+          <span class="stat-label">Active Members:</span>
           <span class="stat-value">${server.total_joins || 0}</span>
         </div>
         <div class="stat-item">
           <span class="stat-label">Conversion Rate:</span>
-          <span class="stat-value">${server.conversion_rate || '0%'}</span>
+          <span class="stat-value">${Math.round(parseFloat(server.conversion_rate) || 0)}%</span>
         </div>
         <div class="stat-item">
           <span class="stat-label">Monthly Revenue:</span>
