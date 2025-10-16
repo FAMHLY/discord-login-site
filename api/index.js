@@ -142,6 +142,14 @@ app.use(cookieParser());
 
 // Session management is handled by Supabase
 
+// Handle /dashboard route - redirect to /dashboard.html
+app.get('/dashboard', async (req, res) => {
+  console.log('=== /dashboard route hit, redirecting to /dashboard.html ===');
+  // Preserve query parameters when redirecting
+  const queryString = req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : '';
+  res.redirect('/dashboard.html' + queryString);
+});
+
 // Handle dashboard.html route specifically (before static file serving)
 app.get('/dashboard.html', async (req, res, next) => {
   console.log('=== /dashboard.html route hit ===');
@@ -1618,8 +1626,8 @@ app.post('/api/stripe/create-checkout', async (req, res) => {
     }
 
     // Create checkout session
-    const successUrl = `${req.protocol}://${req.get('host')}/dashboard?subscription=success`;
-    const cancelUrl = `${req.protocol}://${req.get('host')}/dashboard?subscription=cancelled`;
+    const successUrl = `${req.protocol}://${req.get('host')}/dashboard.html?subscription=success`;
+    const cancelUrl = `${req.protocol}://${req.get('host')}/dashboard.html?subscription=cancelled`;
 
     const checkoutResult = await createCheckoutSession(
       customerResult.customerId,
