@@ -8,6 +8,17 @@ document.addEventListener('DOMContentLoaded', () => {
   console.log('URL search params:', Object.fromEntries(urlParams));
   console.log('URL hash params:', Object.fromEntries(hashParams));
   
+  // Handle Stripe checkout return parameters
+  const subscriptionStatus = urlParams.get('subscription');
+  if (subscriptionStatus) {
+    console.log('Stripe checkout return detected:', subscriptionStatus);
+    handleStripeReturn(subscriptionStatus);
+    
+    // Clean up URL parameters
+    const newUrl = window.location.pathname;
+    window.history.replaceState({}, document.title, newUrl);
+  }
+  
   // If we have OAuth parameters, try to handle them
   if (urlParams.get('access_token') || hashParams.get('access_token')) {
     console.log('OAuth parameters detected, redirecting to callback handler');
@@ -600,6 +611,29 @@ async function enableServerSubscriptions(serverId) {
   }
 }
 
+function handleStripeReturn(status) {
+  console.log('Handling Stripe return with status:', status);
+  
+  switch (status) {
+    case 'success':
+      showMessage('🎉 Payment successful! You now have premium access to the Discord server. Your 🟢 premium role has been assigned!', 'success');
+      // Refresh servers to show updated stats
+      setTimeout(() => {
+        if (typeof loadServers === 'function') {
+          loadServers();
+        }
+      }, 2000);
+      break;
+      
+    case 'cancelled':
+      showMessage('💳 Payment was cancelled. You can try again anytime by clicking the "Enable Premium Subscriptions" button.', 'info');
+      break;
+      
+    default:
+      showMessage('ℹ️ You returned from the payment process. Check your subscription status below.', 'info');
+  }
+}
+
 function showMessage(message, type) {
   // Remove any existing messages
   const existingMessages = document.querySelectorAll('.message');
@@ -615,11 +649,12 @@ function showMessage(message, type) {
   if (dashboardContent) {
     dashboardContent.insertBefore(messageDiv, dashboardContent.firstChild);
     
-    // Auto-remove after 5 seconds
+    // Auto-remove after 8 seconds for success messages, 5 seconds for others
+    const timeout = type === 'success' ? 8000 : 5000;
     setTimeout(() => {
       if (messageDiv.parentNode) {
         messageDiv.remove();
       }
-    }, 5000);
+    }, timeout);
   }
 }
