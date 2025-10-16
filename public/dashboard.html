@@ -5,6 +5,60 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Dashboard</title>
   <link rel="stylesheet" href="styles.css">
+  <style>
+    /* Subscription section styles */
+    .subscription-section {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 1.5rem;
+      border-radius: 8px;
+      margin-top: 1rem;
+      text-align: center;
+    }
+    
+    .subscription-header h4 {
+      margin: 0 0 0.5rem 0;
+      font-size: 1.1rem;
+    }
+    
+    .subscription-header p {
+      margin: 0 0 1rem 0;
+      opacity: 0.9;
+      font-size: 0.9rem;
+    }
+    
+    .btn-premium {
+      background: #00FF00;
+      color: #000;
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-size: 0.9rem;
+    }
+    
+    .btn-premium:hover:not(:disabled) {
+      background: #00CC00;
+      transform: translateY(-1px);
+    }
+    
+    .btn-premium:disabled {
+      background: #666;
+      cursor: not-allowed;
+      transform: none;
+    }
+    
+    .subscription-info {
+      margin-top: 0.75rem;
+    }
+    
+    .subscription-info small {
+      opacity: 0.8;
+      font-size: 0.8rem;
+    }
+  </style>
 </head>
 <body class="dashboard">
   <header>

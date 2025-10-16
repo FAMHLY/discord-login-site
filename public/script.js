@@ -349,6 +349,21 @@ function createServerCard(server) {
           </button>`
         }
       </div>
+      
+      <div class="subscription-section">
+        <div class="subscription-header">
+          <h4>💰 Monetize Your Server</h4>
+          <p>Let members upgrade to premium for exclusive benefits!</p>
+        </div>
+        <div class="subscription-actions">
+          <button class="btn btn-premium" data-action="enable-subscriptions" data-server-id="${server.id}">
+            🚀 Enable Premium Subscriptions
+          </button>
+          <div class="subscription-info">
+            <small>💰 Earn recurring revenue from your Discord community</small>
+          </div>
+        </div>
+      </div>
     </div>
   `;
 }
@@ -529,11 +544,61 @@ function handleServerActionClick(e) {
     case 'copy-invite':
       copyInvite(serverId);
       break;
+    case 'enable-subscriptions':
+      enableServerSubscriptions(serverId);
+      break;
     default:
       console.log('Unknown action:', action);
   }
 }
 
+
+async function enableServerSubscriptions(serverId) {
+  console.log(`Enabling subscriptions for server: ${serverId}`);
+  
+  const priceId = 'price_1SIzTLFSRfDsx8GKL2BP9o3Q'; // Your Stripe price ID
+  
+  try {
+    // Show loading state
+    const button = event.target;
+    const originalText = button.textContent;
+    button.textContent = '⏳ Creating checkout...';
+    button.disabled = true;
+    
+    const response = await fetch('/api/stripe/create-checkout', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        serverId: serverId,
+        priceId: priceId
+      })
+    });
+
+    const result = await response.json();
+    
+    if (result.success) {
+      console.log('Checkout session created, redirecting...');
+      // Redirect to Stripe checkout
+      window.location.href = result.url;
+    } else {
+      console.error('Failed to create checkout session:', result.error);
+      showMessage(`Failed to create checkout session: ${result.error}`, 'error');
+      
+      // Reset button
+      button.textContent = originalText;
+      button.disabled = false;
+    }
+  } catch (error) {
+    console.error('Error creating checkout session:', error);
+    showMessage(`Error creating checkout session: ${error.message}`, 'error');
+    
+    // Reset button
+    button.textContent = originalText;
+    button.disabled = false;
+  }
+}
 
 function showMessage(message, type) {
   // Remove any existing messages
