@@ -4,12 +4,25 @@
     {
       "src": "api/index.js",
       "use": "@vercel/node"
+    },
+    {
+      "src": "api/bot.js",
+      "use": "@vercel/node"
     }
   ],
   "routes": [
     {
+      "src": "/api/bot/(.*)",
+      "dest": "api/bot.js"
+    },
+    {
       "src": "/(.*)",
       "dest": "api/index.js"
     }
-  ]
+  ],
+  "functions": {
+    "api/bot.js": {
+      "maxDuration": 30
+    }
+  }
 }
