@@ -872,26 +872,26 @@ app.post('/api/servers/:serverId/configure', async (req, res) => {
     // Try to create a real Discord invite if bot is available
     if (process.env.DISCORD_BOT_TOKEN) {
       try {
-        console.log('Creating real Discord invite using bot API...');
+        console.log('Creating real Discord invite using bot utilities...');
         
-        // Use the new bot API endpoint
-        const botResponse = await axios.post(`${process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000'}/api/bot/generate-invite`, {
-          serverId: serverId,
+        // Use the shared bot utility
+        const { generateDiscordInvite } = require('./bot-utils');
+        const botResponse = await generateDiscordInvite(serverId, {
           maxAge: 0,
           maxUses: 0
         });
         
-        if (botResponse.data.success) {
-          inviteCode = botResponse.data.invite_code;
-          actualInviteUrl = botResponse.data.invite_url;
-          actualServerName = botResponse.data.server_name;
+        if (botResponse.success) {
+          inviteCode = botResponse.invite_code;
+          actualInviteUrl = botResponse.invite_url;
+          actualServerName = botResponse.server_name;
           console.log(`✅ Created real Discord invite: ${actualInviteUrl}`);
         } else {
-          console.log('Bot API failed:', botResponse.data.error);
+          console.log('Bot utility failed:', botResponse.error);
           // Fall through to fallback
         }
       } catch (error) {
-        console.error('Error creating Discord invite via bot API:', error.response?.data || error.message);
+        console.error('Error creating Discord invite via bot utility:', error.message);
         // Fall through to fallback
       }
     }
@@ -1056,25 +1056,25 @@ app.post('/api/servers/:serverId/invite', async (req, res) => {
       });
     }
 
-    // Use the new bot API endpoint for invite generation
-    console.log('Creating invite using bot API...');
+    // Use the shared bot utility for invite generation
+    console.log('Creating invite using bot utilities...');
     
-    const botResponse = await axios.post(`${process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000'}/api/bot/generate-invite`, {
-      serverId: serverId,
+    const { generateDiscordInvite } = require('./bot-utils');
+    const botResponse = await generateDiscordInvite(serverId, {
       maxAge: 0,
       maxUses: 0
     });
     
-    if (!botResponse.data.success) {
-      return res.status(botResponse.status || 500).json({
+    if (!botResponse.success) {
+      return res.status(500).json({
         success: false,
-        error: botResponse.data.error || 'Failed to create invite',
-        details: botResponse.data.error || 'Unknown error occurred'
+        error: botResponse.error || 'Failed to create invite',
+        details: botResponse.error || 'Unknown error occurred'
       });
     }
     
-    const invite = botResponse.data;
-    console.log(`✅ Created invite via bot API: ${invite.invite_url}`);
+    const invite = botResponse;
+    console.log(`✅ Created invite via bot utility: ${invite.invite_url}`);
 
     // Update database with the new invite code
     console.log('Updating database with invite code:', invite.invite_code);
@@ -1127,14 +1127,15 @@ app.post('/api/servers/:serverId/invite', async (req, res) => {
   }
 });
 
-// Health check endpoint for Discord bot (redirects to bot API)
+// Health check endpoint for Discord bot (uses shared utility)
 app.get('/api/bot/health', async (req, res) => {
   try {
-    // Redirect to the bot API health check
-    const botResponse = await axios.get(`${process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000'}/api/bot/health`);
-    res.json(botResponse.data);
+    // Use the shared bot utility for health check
+    const { checkBotHealth } = require('./bot-utils');
+    const botResponse = await checkBotHealth();
+    res.json(botResponse);
   } catch (error) {
-    console.error('Bot health check failed:', error.response?.data || error.message);
+    console.error('Bot health check failed:', error.message);
     res.json({
       status: 'error',
       bot_configured: !!process.env.DISCORD_BOT_TOKEN,
