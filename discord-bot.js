@@ -1,3 +1,6 @@
+// Load environment variables
+require('dotenv').config();
+
 const { Client, GatewayIntentBits, PermissionFlagsBits } = require('discord.js');
 const express = require('express');
 const cors = require('cors');
@@ -17,6 +20,9 @@ app.use(cors());
 // Bot configuration
 const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
 const PORT = process.env.PORT || 3000;
+
+// Store server configurations (for future use)
+const serverConfigs = new Map();
 
 // Debug environment variables
 console.log('Environment check:', {
