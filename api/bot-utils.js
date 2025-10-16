@@ -9,7 +9,13 @@ async function createBotClient() {
         ]
     });
     
-    await client.login(process.env.DISCORD_BOT_TOKEN);
+    // Add timeout to prevent hanging
+    const loginPromise = client.login(process.env.DISCORD_BOT_TOKEN);
+    const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Bot login timeout')), 10000)
+    );
+    
+    await Promise.race([loginPromise, timeoutPromise]);
     return client;
 }
 
@@ -25,14 +31,33 @@ async function generateDiscordInvite(serverId, options = {}) {
     const client = await createBotClient();
     
     try {
+        // Wait for the client to be ready
+        if (!client.isReady()) {
+            await new Promise(resolve => client.once('ready', resolve));
+        }
+        
         // Find the guild (server)
         const guild = client.guilds.cache.get(serverId);
         if (!guild) {
+            console.log(`Guild not found. Available guilds: ${client.guilds.cache.map(g => `${g.name} (${g.id})`).join(', ')}`);
             throw new Error('Server not found or bot not in server');
         }
         
+        console.log(`Found guild: ${guild.name} (${guild.id})`);
+        
+        // Fetch the guild members to ensure we have the bot member
+        await guild.members.fetch();
+        
         // Check if bot has permission to create invites
         const botMember = guild.members.cache.get(client.user.id);
+        if (!botMember) {
+            console.log(`Bot member not found in guild. Bot ID: ${client.user.id}`);
+            console.log(`Available members: ${guild.members.cache.map(m => `${m.user.tag} (${m.id})`).join(', ')}`);
+            throw new Error('Bot is not a member of this server. Please add the bot to the server first.');
+        }
+        
+        console.log(`Bot member found: ${botMember.user.tag}`);
+        
         if (!botMember.permissions.has(PermissionFlagsBits.CreateInstantInvite)) {
             throw new Error('Bot does not have permission to create invites');
         }
