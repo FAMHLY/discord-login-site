@@ -1,8 +1,31 @@
 // Shared Discord bot utilities for both main API and bot API
 const { Client, GatewayIntentBits, PermissionFlagsBits } = require('discord.js');
 
-// Create a temporary bot client for serverless operations
-async function createBotClient() {
+// Global client instance for connection reuse
+let globalClient = null;
+let clientReady = false;
+let clientPromise = null;
+
+// Create and maintain a persistent bot client
+async function getOrCreateClient() {
+    // If client is already ready, return it immediately
+    if (globalClient && clientReady && globalClient.isReady()) {
+        return globalClient;
+    }
+    
+    // If we're already creating a client, wait for it
+    if (clientPromise) {
+        return clientPromise;
+    }
+    
+    // Create new client
+    clientPromise = createClient();
+    return clientPromise;
+}
+
+async function createClient() {
+    console.log('🔌 Creating new Discord client...');
+    
     const client = new Client({
         intents: [
             GatewayIntentBits.Guilds
@@ -15,44 +38,63 @@ async function createBotClient() {
         },
         // Reduce connection timeouts
         rest: {
-            timeout: 5000
+            timeout: 3000
+        },
+        // Disable unnecessary features for speed
+        presence: {
+            status: 'invisible'
         }
     });
     
-    // Add timeout to prevent hanging (reduced from 10s to 7s for faster failure)
-    const loginPromise = client.login(process.env.DISCORD_BOT_TOKEN);
-    const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Bot login timeout')), 7000)
-    );
+    // Set up event handlers
+    client.once('clientReady', () => {
+        console.log(`✅ Discord client ready: ${client.user.tag}`);
+        clientReady = true;
+    });
+    
+    client.on('error', (error) => {
+        console.error('❌ Discord client error:', error);
+        clientReady = false;
+    });
+    
+    client.on('disconnect', () => {
+        console.log('🔌 Discord client disconnected');
+        clientReady = false;
+    });
     
     try {
+        // Login with shorter timeout
+        const loginPromise = client.login(process.env.DISCORD_BOT_TOKEN);
+        const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Bot login timeout')), 5000)
+        );
+        
         await Promise.race([loginPromise, timeoutPromise]);
         
-        // Wait for client to be ready with a shorter timeout
-        const readyPromise = new Promise((resolve, reject) => {
-            const timeout = setTimeout(() => reject(new Error('Bot ready timeout')), 3000);
-            
-            if (client.isReady()) {
-                clearTimeout(timeout);
-                resolve();
-            } else {
+        // Wait for ready state with shorter timeout
+        if (!client.isReady()) {
+            const readyPromise = new Promise((resolve, reject) => {
+                const timeout = setTimeout(() => reject(new Error('Bot ready timeout')), 2000);
+                
                 client.once('clientReady', () => {
                     clearTimeout(timeout);
                     resolve();
                 });
-            }
-        });
+            });
+            
+            await readyPromise;
+        }
         
-        await readyPromise;
+        globalClient = client;
+        clientReady = true;
+        
+        console.log(`🚀 Discord client connected successfully`);
         return client;
         
     } catch (error) {
-        // Ensure client is destroyed on error
-        try {
-            client.destroy();
-        } catch (destroyError) {
-            // Ignore destroy errors
-        }
+        console.error('❌ Failed to create Discord client:', error);
+        clientReady = false;
+        clientPromise = null;
         throw error;
     }
 }
@@ -60,7 +102,7 @@ async function createBotClient() {
 // Generate Discord invite for a specific server
 async function generateDiscordInvite(serverId, options = {}, retryCount = 0) {
     const { maxAge = 0, maxUses = 0 } = options;
-    const maxRetries = 2;
+    const maxRetries = 1; // Reduced retries for faster failure
     
     if (!process.env.DISCORD_BOT_TOKEN) {
         throw new Error('Discord bot is not configured');
@@ -68,13 +110,8 @@ async function generateDiscordInvite(serverId, options = {}, retryCount = 0) {
     
     let client;
     try {
-        // Create temporary bot client
-        client = await createBotClient();
-        
-        // Wait for the client to be ready (already handled in createBotClient)
-        if (!client.isReady()) {
-            await new Promise(resolve => client.once('clientReady', resolve));
-        }
+        // Get or create client (reuses existing connection)
+        client = await getOrCreateClient();
         
         // Find the guild (server)
         const guild = client.guilds.cache.get(serverId);
@@ -135,33 +172,31 @@ async function generateDiscordInvite(serverId, options = {}, retryCount = 0) {
     } catch (error) {
         console.error(`Bot invite generation attempt ${retryCount + 1} failed:`, error.message);
         
-        // Clean up client on error
-        if (client) {
-            try {
-                client.destroy();
-            } catch (destroyError) {
-                // Ignore destroy errors
+        // Reset client connection on certain errors
+        if (error.message.includes('timeout') || error.message.includes('Bot login timeout')) {
+            console.log('🔄 Resetting client connection due to timeout...');
+            clientReady = false;
+            clientPromise = null;
+            if (globalClient) {
+                try {
+                    globalClient.destroy();
+                } catch (destroyError) {
+                    // Ignore destroy errors
+                }
+                globalClient = null;
             }
         }
         
         // Retry logic for timeout errors
         if ((error.message.includes('timeout') || error.message.includes('Bot login timeout')) && retryCount < maxRetries) {
             console.log(`Retrying bot invite generation (attempt ${retryCount + 2}/${maxRetries + 1})...`);
-            await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+            await new Promise(resolve => setTimeout(resolve, 500)); // Shorter wait for retry
             return generateDiscordInvite(serverId, options, retryCount + 1);
         }
         
         throw error;
-    } finally {
-        // Always clean up the client
-        if (client) {
-            try {
-                client.destroy();
-            } catch (destroyError) {
-                // Ignore destroy errors
-            }
-        }
     }
+    // Note: We don't destroy the client here since we're reusing connections
 }
 
 // Get server information
@@ -170,10 +205,8 @@ async function getServerInfo(serverId) {
         throw new Error('Discord bot is not configured');
     }
     
-    // Create temporary bot client
-    let client;
     try {
-        client = await createBotClient();
+        const client = await getOrCreateClient();
         
         const guild = client.guilds.cache.get(serverId);
         if (!guild) {
@@ -196,15 +229,6 @@ async function getServerInfo(serverId) {
     } catch (error) {
         console.error('Error fetching server info:', error.message);
         throw error;
-    } finally {
-        // Always clean up the client
-        if (client) {
-            try {
-                client.destroy();
-            } catch (destroyError) {
-                // Ignore destroy errors
-            }
-        }
     }
 }
 
@@ -214,8 +238,7 @@ async function getAllServers() {
         throw new Error('Discord bot is not configured');
     }
     
-    // Create temporary bot client
-    const client = await createBotClient();
+    const client = await getOrCreateClient();
     
     try {
         const servers = client.guilds.cache.map(guild => ({
@@ -232,9 +255,9 @@ async function getAllServers() {
             servers: servers
         };
         
-    } finally {
-        // Always clean up the client
-        client.destroy();
+    } catch (error) {
+        console.error('Error fetching servers:', error.message);
+        throw error;
     }
 }
 
@@ -249,21 +272,15 @@ async function checkBotHealth() {
     }
 
     try {
-        // Test bot token by creating a temporary client
-        const client = await createBotClient();
+        const client = await getOrCreateClient();
         
-        const result = {
+        return {
             status: 'healthy',
-            bot_online: true,
+            bot_online: client.isReady(),
             bot_user: client.user ? `${client.user.username}#${client.user.discriminator}` : 'Unknown',
             guilds_count: client.guilds.cache.size,
             message: 'Bot is operational'
         };
-
-        // Clean up the client
-        client.destroy();
-        
-        return result;
         
     } catch (error) {
         console.error('Bot health check failed:', error);
