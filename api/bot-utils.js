@@ -33,7 +33,7 @@ async function generateDiscordInvite(serverId, options = {}) {
     try {
         // Wait for the client to be ready
         if (!client.isReady()) {
-            await new Promise(resolve => client.once('ready', resolve));
+            await new Promise(resolve => client.once('clientReady', resolve));
         }
         
         // Find the guild (server)

@@ -210,8 +210,13 @@ async function loadServers() {
       
       // Add event listener to the add server button
       const addServerBtn = document.getElementById('add-server-btn');
+      console.log('Add server button found:', addServerBtn);
       if (addServerBtn) {
+        console.log('Adding click event listener to add server button');
         addServerBtn.addEventListener('click', addManualServer);
+        console.log('Event listener added successfully');
+      } else {
+        console.error('Add server button not found!');
       }
       
       // Add event listeners for server action buttons
@@ -365,8 +370,8 @@ function copyInvite(serverId) {
   });
 }
 
-function addManualServer() {
-  console.log('addManualServer function called');
+function addManualServer(event) {
+  console.log('addManualServer function called', event);
   
   const serverIdInput = document.getElementById('manual-server-id');
   console.log('Server ID input element:', serverIdInput);
