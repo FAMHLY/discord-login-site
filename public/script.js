@@ -259,14 +259,31 @@ function createServerCard(server) {
   const statusClass = server.is_configured ? 'status-configured' : 'status-not-configured';
   const statusText = server.is_configured ? 'Configured' : 'Not Configured';
   
+  // Format Discord server icon URL properly
+  let serverIconUrl = 'https://cdn.discordapp.com/embed/avatars/0.png'; // Default Discord icon
+  
+  if (server.server_icon || server.icon) {
+    const iconData = server.server_icon || server.icon;
+    if (iconData && iconData !== 'null' && iconData !== '') {
+      // Check if it's already a full URL (stored from API) or just an icon ID
+      if (iconData.startsWith('https://')) {
+        serverIconUrl = iconData;
+      } else {
+        // It's just an icon ID, construct the full URL
+        serverIconUrl = `https://cdn.discordapp.com/icons/${server.id}/${iconData}.png?size=256`;
+      }
+    }
+  }
+  
   return `
     <div class="server-card" data-server-id="${server.id}">
       <div class="server-header">
-        <img src="${server.server_icon || server.icon || 'https://cdn.discordapp.com/embed/avatars/0.png'}" 
-             alt="${server.name}" class="server-icon">
+        <img src="${serverIconUrl}" 
+             alt="${server.name}" class="server-icon"
+             onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
         <div class="server-info">
           <h4>${server.name}</h4>
-          <p>${server.user_role || 'Member'}</p>
+          <p>${server.user_role === 'Add Bot to Server' ? 'Member' : (server.user_role || 'Member')}</p>
         </div>
       </div>
       
