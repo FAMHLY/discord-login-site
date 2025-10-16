@@ -19,8 +19,8 @@ try {
 }
 
 // Standardized role names
-const PAID_ROLE_NAME = '🟢 Paid Member';
-const FREE_ROLE_NAME = '🔴 Free Member';
+const PAID_ROLE_NAME = '🟢';
+const FREE_ROLE_NAME = '🔴';
 
 /**
  * Create a Stripe Checkout Session for Discord server subscription

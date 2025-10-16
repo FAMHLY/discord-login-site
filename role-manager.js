@@ -9,8 +9,8 @@ const supabase = createClient(
 );
 
 // Standardized role names and colors
-const PAID_ROLE_NAME = '🟢 Paid Member';
-const FREE_ROLE_NAME = '🔴 Free Member';
+const PAID_ROLE_NAME = '🟢';
+const FREE_ROLE_NAME = '🔴';
 const PAID_ROLE_COLOR = '#00FF00'; // Green
 const FREE_ROLE_COLOR = '#FF0000'; // Red
 
