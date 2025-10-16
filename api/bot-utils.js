@@ -122,40 +122,69 @@ async function generateDiscordInvite(serverId, options = {}, retryCount = 0) {
         
         console.log(`Found guild: ${guild.name} (${guild.id})`);
         
-        // Fetch the guild members to ensure we have the bot member
-        await guild.members.fetch();
-        
         // Check if bot has permission to create invites
-        const botMember = guild.members.cache.get(client.user.id);
+        // Try to get bot member from cache first, then fetch if needed
+        let botMember = guild.members.cache.get(client.user.id);
+        
+        if (!botMember) {
+            console.log('Bot member not in cache, fetching...');
+            try {
+                // Only fetch the specific bot member, not all members
+                const fetchPromise = guild.members.fetch(client.user.id);
+                const timeoutPromise = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Member fetch timeout')), 3000)
+                );
+                botMember = await Promise.race([fetchPromise, timeoutPromise]);
+            } catch (fetchError) {
+                console.log('Failed to fetch bot member:', fetchError.message);
+                // Continue anyway - we'll check permissions later
+            }
+        }
         if (!botMember) {
             console.log(`Bot member not found in guild. Bot ID: ${client.user.id}`);
             console.log(`Available members: ${guild.members.cache.map(m => `${m.user.tag} (${m.id})`).join(', ')}`);
-            throw new Error('Bot is not a member of this server. Please add the bot to the server first.');
-        }
-        
-        console.log(`Bot member found: ${botMember.user.tag}`);
-        
-        if (!botMember.permissions.has(PermissionFlagsBits.CreateInstantInvite)) {
-            throw new Error('Bot does not have permission to create invites');
+            console.log('⚠️ Proceeding without bot member validation - attempting direct invite creation');
+            // Continue without bot member validation - we'll try to create invite directly
+        } else {
+            console.log(`Bot member found: ${botMember.user.tag}`);
+            
+            if (!botMember.permissions.has(PermissionFlagsBits.CreateInstantInvite)) {
+                throw new Error('Bot does not have permission to create invites');
+            }
         }
         
         // Find a suitable channel to create the invite
-        const channel = guild.channels.cache.find(ch => 
-            ch.type === 0 && // Text channel
-            ch.permissionsFor(botMember).has(PermissionFlagsBits.CreateInstantInvite)
-        );
+        const channel = guild.channels.cache.find(ch => {
+            if (ch.type !== 0) return false; // Must be text channel
+            
+            if (botMember) {
+                // If we have bot member, check permissions
+                return ch.permissionsFor(botMember).has(PermissionFlagsBits.CreateInstantInvite);
+            } else {
+                // If no bot member, try to find any text channel and attempt invite creation
+                console.log(`Trying channel: ${ch.name} (${ch.id})`);
+                return true;
+            }
+        });
         
         if (!channel) {
             throw new Error('No suitable channel found for creating invites');
         }
         
-        // Create the invite
-        const invite = await channel.createInvite({
-            maxAge: maxAge, // 0 = never expires
-            maxUses: maxUses, // 0 = unlimited uses
+        // Create the invite with timeout
+        console.log(`Creating invite in channel: ${channel.name} (${channel.id})`);
+        const invitePromise = channel.createInvite({
+            maxAge: options.maxAge || 0,
+            maxUses: options.maxUses || 0,
             unique: true,
             reason: 'Generated via Discord Monetization Bot'
         });
+        
+        const inviteTimeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Invite creation timeout')), 5000)
+        );
+        
+        const invite = await Promise.race([invitePromise, inviteTimeoutPromise]);
         
         console.log(`✅ Created invite for ${guild.name}: ${invite.url}`);
         
