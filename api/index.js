@@ -941,7 +941,7 @@ app.post('/api/servers/:serverId/configure', async (req, res) => {
       userRole = 'Add Bot to Server';
     }
     
-    const { data, error } = await supabase
+    const { data: serverResult, error } = await supabase
       .from('discord_servers')
       .upsert({
         owner_id: user.id,
@@ -972,7 +972,7 @@ app.post('/api/servers/:serverId/configure', async (req, res) => {
       const { error: restoreError } = await supabase
         .from('affiliate_tracking')
         .update({ 
-          server_id: result.data[0].id, // Link to the new server record
+          server_id: serverResult[0].id, // Link to the new server record
           updated_at: new Date().toISOString()
         })
         .eq('discord_server_id', serverId)
