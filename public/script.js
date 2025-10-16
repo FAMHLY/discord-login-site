@@ -262,17 +262,33 @@ function createServerCard(server) {
   // Format Discord server icon URL properly
   let serverIconUrl = 'https://cdn.discordapp.com/embed/avatars/0.png'; // Default Discord icon
   
+  // Debug logging for server icon
+  console.log('Server icon debug:', {
+    serverId: server.id,
+    server_icon: server.server_icon,
+    icon: server.icon,
+    serverName: server.name
+  });
+  
   if (server.server_icon || server.icon) {
     const iconData = server.server_icon || server.icon;
+    console.log('Icon data found:', iconData);
+    
     if (iconData && iconData !== 'null' && iconData !== '') {
       // Check if it's already a full URL (stored from API) or just an icon ID
       if (iconData.startsWith('https://')) {
         serverIconUrl = iconData;
+        console.log('Using full URL:', serverIconUrl);
       } else {
         // It's just an icon ID, construct the full URL
         serverIconUrl = `https://cdn.discordapp.com/icons/${server.id}/${iconData}.png?size=256`;
+        console.log('Constructed URL:', serverIconUrl);
       }
+    } else {
+      console.log('Icon data is null/empty, using default');
     }
+  } else {
+    console.log('No icon data found in server object');
   }
   
   return `

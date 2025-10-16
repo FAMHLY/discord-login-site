@@ -193,9 +193,17 @@ async function generateDiscordInvite(serverId, options = {}, retryCount = 0) {
             invite_code: invite.code,
             invite_url: invite.url,
             server_name: guild.name,
+            server_icon: guild.icon,
             channel_name: channel.name,
             expires_at: invite.expiresAt,
-            max_uses: invite.maxUses
+            max_uses: invite.maxUses,
+            guild_info: {
+                id: guild.id,
+                name: guild.name,
+                icon: guild.icon,
+                member_count: guild.memberCount,
+                owner_id: guild.ownerId
+            }
         };
         
     } catch (error) {

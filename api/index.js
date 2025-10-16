@@ -885,8 +885,10 @@ app.post('/api/servers/:serverId/configure', async (req, res) => {
           inviteCode = botResponse.invite_code;
           actualInviteUrl = botResponse.invite_url;
           actualServerName = botResponse.server_name;
+          targetGuild = botResponse.guild_info; // Set targetGuild from bot response
           console.log(`✅ Created real Discord invite: ${actualInviteUrl}`);
           console.log(`✅ Discord invite code: ${inviteCode}`);
+          console.log(`✅ Server icon from bot: ${botResponse.server_icon}`);
         } else {
           console.log('Bot utility failed:', botResponse.error);
           // Fall through to fallback
@@ -922,9 +924,14 @@ app.post('/api/servers/:serverId/configure', async (req, res) => {
     
     // Get server icon URL if available
     let serverIconUrl = null;
+    console.log('Server icon debug - targetGuild:', targetGuild);
+    console.log('Server icon debug - targetGuild.icon:', targetGuild?.icon);
+    
     if (targetGuild && targetGuild.icon) {
       serverIconUrl = `https://cdn.discordapp.com/icons/${serverId}/${targetGuild.icon}.png`;
-      console.log('Server icon URL:', serverIconUrl);
+      console.log('Server icon URL constructed:', serverIconUrl);
+    } else {
+      console.log('No server icon found - targetGuild:', !!targetGuild, 'icon:', targetGuild?.icon);
     }
     
     // Get user's Discord role if available
