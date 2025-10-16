@@ -62,16 +62,6 @@ CREATE TRIGGER trigger_update_subscriptions_updated_at
 -- Create RLS policies for subscriptions
 ALTER TABLE subscriptions ENABLE ROW LEVEL SECURITY;
 
--- Policy: Users can view their own subscriptions
-CREATE POLICY "Users can view own subscriptions" ON subscriptions
-    FOR SELECT USING (
-        discord_user_id IN (
-            SELECT user_metadata->>'provider_id'
-            FROM auth.users 
-            WHERE id = auth.uid()
-        )
-    );
-
 -- Policy: Service role can do everything (for webhooks)
 CREATE POLICY "Service role full access" ON subscriptions
     FOR ALL USING (
@@ -87,3 +77,8 @@ CREATE POLICY "Server owners can view subscriptions" ON subscriptions
             WHERE owner_id = auth.uid()
         )
     );
+
+-- Policy: Allow all authenticated users to read subscriptions (for now)
+-- This will be tightened once we implement proper user-subscription matching
+CREATE POLICY "Authenticated users can read subscriptions" ON subscriptions
+    FOR SELECT USING (auth.role() = 'authenticated');
