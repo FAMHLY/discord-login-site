@@ -66,7 +66,7 @@ ALTER TABLE subscriptions ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can view own subscriptions" ON subscriptions
     FOR SELECT USING (
         discord_user_id IN (
-            SELECT provider_id::TEXT 
+            SELECT user_metadata->>'provider_id'
             FROM auth.users 
             WHERE id = auth.uid()
         )
