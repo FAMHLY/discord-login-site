@@ -963,16 +963,39 @@ app.post('/api/servers/:serverId/configure', async (req, res) => {
     }
 
     console.log('Server configured successfully in database');
+    console.log('ServerResult:', serverResult);
     
     // Restore affiliate tracking data if it exists
     if (existingTracking && existingTracking.length > 0) {
       console.log(`📊 Found ${existingTracking.length} existing tracking records, restoring...`);
       
+      // Get the server ID - handle different response structures
+      let serverIdForRestoration;
+      if (serverResult && serverResult.length > 0) {
+        serverIdForRestoration = serverResult[0].id;
+      } else {
+        // If upsert didn't return data, fetch the server record
+        console.log('ServerResult is empty, fetching server record...');
+        const { data: fetchedServer, error: fetchError } = await supabase
+          .from('discord_servers')
+          .select('id')
+          .eq('discord_server_id', serverId)
+          .single();
+          
+        if (fetchError || !fetchedServer) {
+          console.error('Error fetching server record for restoration:', fetchError);
+          return res.status(500).json({ error: 'Failed to restore tracking data', details: fetchError?.message });
+        }
+        
+        serverIdForRestoration = fetchedServer.id;
+        console.log('Fetched server ID for restoration:', serverIdForRestoration);
+      }
+      
       // Update affiliate tracking records to link them to the new server configuration
       const { error: restoreError } = await supabase
         .from('affiliate_tracking')
         .update({ 
-          server_id: serverResult[0].id, // Link to the new server record
+          server_id: serverIdForRestoration, // Link to the new server record
           updated_at: new Date().toISOString()
         })
         .eq('discord_server_id', serverId)
