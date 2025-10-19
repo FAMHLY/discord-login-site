@@ -355,25 +355,15 @@ function createServerCard(server) {
           `<button class="btn btn-primary" data-action="configure" data-server-id="${server.id}" data-server-name="${server.name}">
             Configure Server
           </button>` :
-          `<button class="btn btn-danger" data-action="remove" data-server-id="${server.id}">
-            Remove Server
-          </button>`
+          `<div class="action-buttons">
+            <button class="btn btn-subscribe" data-action="subscribe" data-server-id="${server.id}">
+              Subscribe
+            </button>
+            <button class="btn btn-danger" data-action="remove" data-server-id="${server.id}">
+              Remove Server
+            </button>
+          </div>`
         }
-      </div>
-      
-      <div class="subscription-section">
-        <div class="subscription-header">
-          <h4>💰 Monetize Your Server</h4>
-          <p>Let members upgrade to premium for exclusive benefits!</p>
-        </div>
-        <div class="subscription-actions">
-          <button class="btn btn-premium" data-action="enable-subscriptions" data-server-id="${server.id}">
-            🚀 Enable Premium Subscriptions
-          </button>
-          <div class="subscription-info">
-            <small>💰 Earn recurring revenue from your Discord community</small>
-          </div>
-        </div>
       </div>
     </div>
   `;
@@ -555,6 +545,9 @@ function handleServerActionClick(e) {
     case 'copy-invite':
       copyInvite(serverId);
       break;
+    case 'subscribe':
+      handleSubscribe(button, serverId);
+      break;
     case 'enable-subscriptions':
       enableServerSubscriptions(serverId);
       break;
@@ -563,6 +556,61 @@ function handleServerActionClick(e) {
   }
 }
 
+
+async function handleSubscribe(button, serverId) {
+  console.log(`Subscribe button clicked for server: ${serverId}`);
+  
+  // Check if already subscribed
+  const isSubscribed = button.classList.contains('subscribed');
+  
+  if (isSubscribed) {
+    // Already subscribed - could show a message or do nothing
+    showMessage('You are already subscribed to this server!', 'info');
+    return;
+  }
+  
+  const priceId = 'price_1SIzTLFSRfDsx8GKL2BP9o3Q'; // Your Stripe price ID
+  
+  try {
+    // Show loading state
+    const originalText = button.textContent;
+    button.textContent = '⏳ Creating checkout...';
+    button.disabled = true;
+    
+    const response = await fetch('/api/stripe/create-checkout', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        serverId: serverId,
+        priceId: priceId
+      })
+    });
+
+    const result = await response.json();
+    
+    if (result.success) {
+      console.log('Checkout session created, redirecting...');
+      // Redirect to Stripe checkout
+      window.location.href = result.url;
+    } else {
+      console.error('Failed to create checkout session:', result.error);
+      showMessage(`Failed to create checkout session: ${result.error}`, 'error');
+      
+      // Reset button
+      button.textContent = originalText;
+      button.disabled = false;
+    }
+  } catch (error) {
+    console.error('Error creating checkout session:', error);
+    showMessage(`Error creating checkout session: ${error.message}`, 'error');
+    
+    // Reset button
+    button.textContent = originalText;
+    button.disabled = false;
+  }
+}
 
 async function enableServerSubscriptions(serverId) {
   console.log(`Enabling subscriptions for server: ${serverId}`);
@@ -617,6 +665,10 @@ function handleStripeReturn(status) {
   switch (status) {
     case 'success':
       showMessage('🎉 Payment successful! You now have premium access to the Discord server. Your 🟢 premium role has been assigned!', 'success');
+      
+      // Update all subscribe buttons to show subscribed state
+      updateSubscribeButtons();
+      
       // Refresh servers to show updated stats
       setTimeout(() => {
         if (typeof loadServers === 'function') {
@@ -626,12 +678,22 @@ function handleStripeReturn(status) {
       break;
       
     case 'cancelled':
-      showMessage('💳 Payment was cancelled. You can try again anytime by clicking the "Enable Premium Subscriptions" button.', 'info');
+      showMessage('💳 Payment was cancelled. You can try again anytime by clicking the "Subscribe" button.', 'info');
       break;
       
     default:
       showMessage('ℹ️ You returned from the payment process. Check your subscription status below.', 'info');
   }
+}
+
+function updateSubscribeButtons() {
+  // Find all subscribe buttons and update their state
+  const subscribeButtons = document.querySelectorAll('.btn-subscribe');
+  subscribeButtons.forEach(button => {
+    button.textContent = 'Subscribed';
+    button.classList.add('subscribed');
+    button.disabled = false;
+  });
 }
 
 function showMessage(message, type) {
