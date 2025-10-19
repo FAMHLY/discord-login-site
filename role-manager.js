@@ -99,7 +99,7 @@ async function assignMemberRole(member, serverId) {
       .from('subscriptions')
       .select('id')
       .eq('discord_server_id', serverId)
-      .eq('stripe_customer_id', member.user.id) // Assuming Discord ID is used as customer ID
+      .eq('discord_user_id', member.user.id) // Use Discord user ID for role assignment
       .eq('status', 'active')
       .single();
     

@@ -90,12 +90,17 @@ async function handleSubscriptionCreated(subscription) {
       return { success: true, subscriptionId: subscription.id, warning: 'Database not available' };
     }
 
+    // Get Discord user ID from customer metadata
+    const customer = await stripe.customers.retrieve(customerId);
+    const discordUserId = customer.metadata?.discord_user_id;
+
     // Store subscription in database
     const { error: dbError } = await supabase
       .from('subscriptions')
       .insert({
         stripe_subscription_id: subscription.id,
         stripe_customer_id: customerId,
+        discord_user_id: discordUserId, // Add Discord user ID for role assignment
         discord_server_id: serverId,
         status: subscription.status,
         current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
