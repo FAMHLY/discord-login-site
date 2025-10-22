@@ -248,6 +248,12 @@ async function loadServers() {
               conversion_rate: server.conversion_rate,
               paid_conversion_rate: server.paid_conversion_rate,
               monthly_revenue: server.monthly_revenue,
+              // Add user-specific tracking columns
+              user_total_invite_clicks: server.user_total_invite_clicks,
+              user_total_joins: server.user_total_joins,
+              user_conversion_rate: server.user_conversion_rate,
+              user_paid_conversion_rate: server.user_paid_conversion_rate,
+              user_monthly_revenue: server.user_monthly_revenue,
               user_subscription: userSubscription
             });
             }).join('')}
