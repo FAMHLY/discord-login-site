@@ -13,7 +13,7 @@
       }
     },
     {
-      "src": "api/stripe-webhook-vercel.js",
+      "src": "api/stripe-webhook-fixed.js",
       "use": "@vercel/node",
       "config": {
         "maxDuration": 30
@@ -27,7 +27,7 @@
   "routes": [
     {
       "src": "/api/stripe/webhook",
-      "dest": "api/stripe-webhook-vercel.js"
+      "dest": "api/stripe-webhook-fixed.js"
     },
     {
       "src": "/api/webhook-test",
