@@ -91,15 +91,25 @@ async function handleSubscriptionCreated(subscription) {
     }
 
     // Get Discord user ID from customer metadata
-    const customer = await stripe.customers.retrieve(customerId);
-    const discordUserId = customer.metadata?.discord_user_id;
+    let customer;
+    let discordUserId;
+    
+    if (typeof customerId === 'string') {
+      // Customer ID is a string, retrieve the customer
+      customer = await stripe.customers.retrieve(customerId);
+      discordUserId = customer.metadata?.discord_user_id;
+    } else {
+      // Customer is already expanded as an object
+      customer = customerId;
+      discordUserId = customer.metadata?.discord_user_id;
+    }
 
     // Store subscription in database
     const { error: dbError } = await supabase
       .from('subscriptions')
       .insert({
         stripe_subscription_id: subscription.id,
-        stripe_customer_id: customerId,
+        stripe_customer_id: typeof customerId === 'string' ? customerId : customerId.id,
         discord_user_id: discordUserId, // Add Discord user ID for role assignment
         discord_server_id: serverId,
         status: subscription.status,

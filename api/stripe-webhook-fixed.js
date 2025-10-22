@@ -73,13 +73,17 @@ module.exports = async (req, res) => {
         const subscription = event.data.object;
         await handleSubscriptionCreated(subscription);
         
-        // Update Discord roles
+        // Update Discord roles (skip if role manager fails)
         if (subscription.metadata?.discord_server_id && subscription.customer) {
-          await handleSubscriptionChange(
-            subscription.customer,
-            subscription.metadata.discord_server_id,
-            'active'
-          );
+          try {
+            await handleSubscriptionChange(
+              subscription.customer,
+              subscription.metadata.discord_server_id,
+              'active'
+            );
+          } catch (roleError) {
+            console.log('⚠️  Discord role update failed (this is expected in webhook context):', roleError.message);
+          }
         }
         break;
 
@@ -87,13 +91,17 @@ module.exports = async (req, res) => {
         console.log('📝 Subscription updated');
         const updatedSubscription = event.data.object;
         
-        // Handle subscription status changes
+        // Handle subscription status changes (skip if role manager fails)
         if (updatedSubscription.metadata?.discord_server_id && updatedSubscription.customer) {
-          await handleSubscriptionChange(
-            updatedSubscription.customer,
-            updatedSubscription.metadata.discord_server_id,
-            updatedSubscription.status
-          );
+          try {
+            await handleSubscriptionChange(
+              updatedSubscription.customer,
+              updatedSubscription.metadata.discord_server_id,
+              updatedSubscription.status
+            );
+          } catch (roleError) {
+            console.log('⚠️  Discord role update failed (this is expected in webhook context):', roleError.message);
+          }
         }
         
         // Update conversion rate
@@ -107,13 +115,17 @@ module.exports = async (req, res) => {
         const deletedSubscription = event.data.object;
         await handleSubscriptionDeleted(deletedSubscription);
         
-        // Update Discord roles (remove paid role)
+        // Update Discord roles (remove paid role) - skip if role manager fails
         if (deletedSubscription.metadata?.discord_server_id && deletedSubscription.customer) {
-          await handleSubscriptionChange(
-            deletedSubscription.customer,
-            deletedSubscription.metadata.discord_server_id,
-            'cancelled'
-          );
+          try {
+            await handleSubscriptionChange(
+              deletedSubscription.customer,
+              deletedSubscription.metadata.discord_server_id,
+              'cancelled'
+            );
+          } catch (roleError) {
+            console.log('⚠️  Discord role update failed (this is expected in webhook context):', roleError.message);
+          }
         }
         break;
 
@@ -162,6 +174,12 @@ async function handleCheckoutCompleted(session) {
 async function handleInvoicePaymentSucceeded(invoice) {
   try {
     console.log(`💰 Payment succeeded for invoice: ${invoice.id}`);
+    
+    // Check if invoice has a subscription
+    if (!invoice.subscription) {
+      console.log('⚠️  Invoice has no subscription, skipping...');
+      return;
+    }
     
     // Get the subscription
     const subscription = await stripe.subscriptions.retrieve(invoice.subscription);
