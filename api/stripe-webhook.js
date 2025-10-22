@@ -6,20 +6,19 @@ const { handleSubscriptionChange } = require('../role-manager');
 
 const app = express();
 
-// Middleware to parse raw body for webhook signature verification
-app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }));
-
 // Stripe webhook endpoint
-app.post('/api/stripe/webhook', async (req, res) => {
+app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
   const sig = req.headers['stripe-signature'];
   let event;
 
   try {
-    // Verify webhook signature
+    // Verify webhook signature with raw body
     event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
     console.log(`📡 Received Stripe webhook: ${event.type}`);
   } catch (err) {
     console.error('Webhook signature verification failed:', err.message);
+    console.error('Headers:', req.headers);
+    console.error('Body length:', req.body?.length);
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 

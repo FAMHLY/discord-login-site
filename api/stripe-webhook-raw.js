@@ -1,4 +1,4 @@
-// Stripe webhook handler optimized for Vercel
+// Stripe webhook handler that properly handles raw body for Vercel
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const { handleSubscriptionCreated, handleSubscriptionDeleted, updateServerConversionRate } = require('./stripe');
 const { handleSubscriptionChange } = require('../role-manager');
@@ -13,30 +13,27 @@ module.exports = async (req, res) => {
   let event;
 
   try {
-    // For Vercel, we need to handle the raw body properly
-    // Vercel automatically parses JSON, but Stripe needs the raw buffer
-    let rawBody;
+    // For Vercel, we need to access the raw body
+    // The issue is that Vercel parses JSON automatically
+    // We need to get the raw body from the request stream
     
-    if (Buffer.isBuffer(req.body)) {
-      // Body is already a buffer (ideal case)
-      rawBody = req.body;
-    } else if (typeof req.body === 'string') {
-      // Body is a string, convert to buffer
-      rawBody = Buffer.from(req.body, 'utf8');
-    } else {
-      // Body is parsed JSON object, we need to reconstruct the raw body
-      // This is a fallback - ideally Vercel should be configured to not parse JSON for webhooks
-      rawBody = Buffer.from(JSON.stringify(req.body), 'utf8');
+    // Get the raw body as a string
+    let rawBody = '';
+    
+    // Read the raw body from the request
+    for await (const chunk of req) {
+      rawBody += chunk.toString();
     }
     
+    // Convert to buffer for signature verification
+    const bodyBuffer = Buffer.from(rawBody, 'utf8');
+    
     // Verify webhook signature
-    event = stripe.webhooks.constructEvent(rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET);
+    event = stripe.webhooks.constructEvent(bodyBuffer, sig, process.env.STRIPE_WEBHOOK_SECRET);
     console.log(`📡 Received Stripe webhook: ${event.type}`);
   } catch (err) {
     console.error('Webhook signature verification failed:', err.message);
     console.error('Headers:', req.headers);
-    console.error('Body type:', typeof req.body);
-    console.error('Body length:', req.body?.length);
     console.error('Stripe signature:', sig);
     return res.status(400).json({ error: `Webhook Error: ${err.message}` });
   }
@@ -185,4 +182,3 @@ async function handleInvoicePaymentFailed(invoice) {
     console.error('Error handling invoice payment failed:', error);
   }
 }
-
