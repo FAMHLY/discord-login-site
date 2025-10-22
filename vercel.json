@@ -22,6 +22,14 @@
     {
       "src": "api/webhook-test.js",
       "use": "@vercel/node"
+    },
+    {
+      "src": "api/cancel-subscription.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "api/user-subscriptions.js",
+      "use": "@vercel/node"
     }
   ],
   "routes": [
@@ -32,6 +40,14 @@
     {
       "src": "/api/webhook-test",
       "dest": "api/webhook-test.js"
+    },
+    {
+      "src": "/api/cancel-subscription",
+      "dest": "api/cancel-subscription.js"
+    },
+    {
+      "src": "/api/user-subscriptions",
+      "dest": "api/user-subscriptions.js"
     },
     {
       "src": "/api/bot/(.*)",

@@ -125,6 +125,30 @@
         .btn-subscribe.subscribed:hover:not(:disabled) {
           background: #0056b3;
         }
+        
+        /* Cancel subscription button styles */
+        .btn-cancel {
+          background: #dc3545;
+          color: #fff;
+          border: none;
+          padding: 0.5rem 1rem;
+          border-radius: 4px;
+          font-weight: bold;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          font-size: 0.9rem;
+        }
+        
+        .btn-cancel:hover:not(:disabled) {
+          background: #c82333;
+          transform: translateY(-1px);
+        }
+        
+        .btn-cancel:disabled {
+          background: #666;
+          cursor: not-allowed;
+          transform: none;
+        }
   </style>
 </head>
 <body class="dashboard">

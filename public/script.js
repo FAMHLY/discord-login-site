@@ -168,14 +168,37 @@ async function loadServers() {
   serversList.innerHTML = '<div class="loading">Loading your servers...</div>';
   
   try {
-    const response = await fetch('/api/servers');
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    // Load servers and user subscriptions in parallel
+    const [serversResponse, userResponse] = await Promise.all([
+      fetch('/api/servers'),
+      fetch('/get-user')
+    ]);
+    
+    if (!serversResponse.ok) {
+      throw new Error(`HTTP error! status: ${serversResponse.status}`);
     }
     
-    const responseData = await response.json();
+    const responseData = await serversResponse.json();
+    const userData = await userResponse.json();
+    
     console.log('Loaded servers response:', responseData);
+    console.log('User data:', userData);
     console.log('Configured servers data:', responseData.configured_servers);
+    
+    // Get user's subscriptions if user is logged in
+    let userSubscriptions = [];
+    if (userData && userData.discord_id) {
+      try {
+        const subscriptionsResponse = await fetch(`/api/user-subscriptions?userId=${userData.discord_id}`);
+        if (subscriptionsResponse.ok) {
+          const subscriptionsData = await subscriptionsResponse.json();
+          userSubscriptions = subscriptionsData.subscriptions || [];
+          console.log('User subscriptions:', userSubscriptions);
+        }
+      } catch (error) {
+        console.error('Error fetching user subscriptions:', error);
+      }
+    }
     
     // Handle setup_required message
     if (responseData.setup_required) {
@@ -204,6 +227,10 @@ async function loadServers() {
           <div class="server-cards-grid">
             ${responseData.configured_servers.map(server => {
               console.log('Server data for card creation:', server);
+              
+              // Find user's subscription for this server
+              const userSubscription = userSubscriptions.find(sub => sub.serverId === server.discord_server_id);
+              
               return createServerCard({
               id: server.discord_server_id,
               name: server.server_name,
@@ -220,7 +247,8 @@ async function loadServers() {
               total_joins: server.total_joins,
               conversion_rate: server.conversion_rate,
               paid_conversion_rate: server.paid_conversion_rate,
-              monthly_revenue: server.monthly_revenue
+              monthly_revenue: server.monthly_revenue,
+              user_subscription: userSubscription
             });
             }).join('')}
           </div>
@@ -254,8 +282,15 @@ async function loadServers() {
       return;
     }
     
-    // Render servers
-    serversList.innerHTML = servers.map(server => createServerCard(server)).join('');
+    // Render servers with subscription data
+    serversList.innerHTML = servers.map(server => {
+      // Find user's subscription for this server
+      const userSubscription = userSubscriptions.find(sub => sub.serverId === server.id);
+      return createServerCard({
+        ...server,
+        user_subscription: userSubscription
+      });
+    }).join('');
     
     // Add event listeners for server action buttons
     addServerActionListeners();
@@ -269,6 +304,9 @@ async function loadServers() {
 function createServerCard(server) {
   const statusClass = server.is_configured ? 'status-configured' : 'status-not-configured';
   const statusText = server.is_configured ? 'Configured' : 'Not Configured';
+  
+  // Check if user has an active subscription for this server
+  const hasActiveSubscription = server.user_subscription && server.user_subscription.status === 'active';
   
   // Format Discord server icon URL properly
   let serverIconUrl = 'https://cdn.discordapp.com/embed/avatars/0.png'; // Default Discord icon
@@ -356,9 +394,14 @@ function createServerCard(server) {
             Configure Server
           </button>` :
           `<div class="action-buttons">
-            <button class="btn btn-subscribe" data-action="subscribe" data-server-id="${server.id}">
-              Subscribe
-            </button>
+            ${hasActiveSubscription ? 
+              `<button class="btn btn-cancel" data-action="cancel-subscription" data-server-id="${server.id}" data-subscription-id="${server.user_subscription.id}">
+                Cancel Subscription
+              </button>` :
+              `<button class="btn btn-subscribe" data-action="subscribe" data-server-id="${server.id}">
+                Subscribe
+              </button>`
+            }
             <button class="btn btn-danger" data-action="remove" data-server-id="${server.id}">
               Remove Server
             </button>
@@ -548,6 +591,10 @@ function handleServerActionClick(e) {
     case 'subscribe':
       handleSubscribe(button, serverId);
       break;
+    case 'cancel-subscription':
+      const subscriptionId = button.dataset.subscriptionId;
+      handleCancelSubscription(button, serverId, subscriptionId);
+      break;
     case 'enable-subscriptions':
       enableServerSubscriptions(serverId);
       break;
@@ -605,6 +652,59 @@ async function handleSubscribe(button, serverId) {
   } catch (error) {
     console.error('Error creating checkout session:', error);
     showMessage(`Error creating checkout session: ${error.message}`, 'error');
+    
+    // Reset button
+    button.textContent = originalText;
+    button.disabled = false;
+  }
+}
+
+async function handleCancelSubscription(button, serverId, subscriptionId) {
+  console.log(`Cancel subscription button clicked for server: ${serverId}, subscription: ${subscriptionId}`);
+  
+  // Confirm cancellation
+  if (!confirm('Are you sure you want to cancel your subscription? This action cannot be undone and you will lose access to premium features.')) {
+    return;
+  }
+  
+  try {
+    // Show loading state
+    const originalText = button.textContent;
+    button.textContent = '⏳ Cancelling...';
+    button.disabled = true;
+    
+    const response = await fetch('/api/cancel-subscription', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        subscriptionId: subscriptionId,
+        serverId: serverId
+      })
+    });
+
+    const result = await response.json();
+    
+    if (result.success) {
+      console.log('Subscription cancelled successfully');
+      showMessage('✅ Subscription cancelled successfully. You will retain access until the end of your current billing period.', 'success');
+      
+      // Reload servers to show updated status
+      setTimeout(() => {
+        loadServers();
+      }, 2000);
+    } else {
+      console.error('Failed to cancel subscription:', result.error);
+      showMessage(`Failed to cancel subscription: ${result.error}`, 'error');
+      
+      // Reset button
+      button.textContent = originalText;
+      button.disabled = false;
+    }
+  } catch (error) {
+    console.error('Error cancelling subscription:', error);
+    showMessage(`Error cancelling subscription: ${error.message}`, 'error');
     
     // Reset button
     button.textContent = originalText;
