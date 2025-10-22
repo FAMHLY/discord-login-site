@@ -104,20 +104,42 @@ async function handleSubscriptionCreated(subscription) {
       discordUserId = customer.metadata?.discord_user_id;
     }
 
+    // Prepare subscription data with better error handling
+    const subscriptionData = {
+      stripe_subscription_id: subscription.id,
+      stripe_customer_id: typeof customerId === 'string' ? customerId : customerId.id,
+      discord_user_id: discordUserId,
+      discord_server_id: serverId,
+      status: subscription.status,
+      price_id: subscription.items?.data?.[0]?.price?.id,
+      metadata: subscription.metadata
+    };
+
+    // Handle period dates safely
+    if (subscription.current_period_start) {
+      try {
+        subscriptionData.current_period_start = new Date(subscription.current_period_start * 1000).toISOString();
+      } catch (error) {
+        console.error('Error parsing current_period_start:', error);
+        subscriptionData.current_period_start = null;
+      }
+    }
+
+    if (subscription.current_period_end) {
+      try {
+        subscriptionData.current_period_end = new Date(subscription.current_period_end * 1000).toISOString();
+      } catch (error) {
+        console.error('Error parsing current_period_end:', error);
+        subscriptionData.current_period_end = null;
+      }
+    }
+
+    console.log('Inserting subscription data:', subscriptionData);
+
     // Store subscription in database
     const { error: dbError } = await supabase
       .from('subscriptions')
-      .insert({
-        stripe_subscription_id: subscription.id,
-        stripe_customer_id: typeof customerId === 'string' ? customerId : customerId.id,
-        discord_user_id: discordUserId, // Add Discord user ID for role assignment
-        discord_server_id: serverId,
-        status: subscription.status,
-        current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
-        current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
-        price_id: subscription.items.data[0]?.price?.id,
-        metadata: subscription.metadata
-      });
+      .insert(subscriptionData);
 
     if (dbError) {
       console.error('Error storing subscription:', dbError);
