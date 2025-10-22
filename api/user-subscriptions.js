@@ -16,11 +16,9 @@ try {
 
 module.exports = async (req, res) => {
   // Set no-cache headers to prevent Vercel from caching responses
-  res.set({
-    'Cache-Control': 'no-cache, no-store, must-revalidate',
-    'Pragma': 'no-cache',
-    'Expires': '0'
-  });
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   
   // Only allow GET requests
   if (req.method !== 'GET') {
