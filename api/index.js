@@ -757,6 +757,13 @@ app.get('/logout', async (req, res) => {
 app.get('/api/servers', async (req, res) => {
   console.log('=== /api/servers endpoint called ===');
   
+  // Set no-cache headers to prevent Vercel from caching responses
+  res.set({
+    'Cache-Control': 'no-cache, no-store, must-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0'
+  });
+  
   const supabase = createServerClient(
     process.env.SUPABASE_URL,
     process.env.SUPABASE_ANON_KEY,
@@ -1316,6 +1323,13 @@ app.get('/api/bot/health', async (req, res) => {
 // Get server statistics
 app.get('/api/servers/:serverId/stats', async (req, res) => {
   console.log('=== /api/servers/:serverId/stats endpoint called ===');
+  
+  // Set no-cache headers to prevent Vercel from caching responses
+  res.set({
+    'Cache-Control': 'no-cache, no-store, must-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0'
+  });
   
   const supabase = createServerClient(
     process.env.SUPABASE_URL,
