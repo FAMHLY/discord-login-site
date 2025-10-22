@@ -663,7 +663,7 @@ async function handleCancelSubscription(button, serverId, subscriptionId) {
   console.log(`Cancel subscription button clicked for server: ${serverId}, subscription: ${subscriptionId}`);
   
   // Confirm cancellation
-  if (!confirm('Are you sure you want to cancel your subscription? This action cannot be undone and you will lose access to premium features.')) {
+  if (!confirm('Are you sure you want to cancel your subscription? To gain full access, subscribe again.')) {
     return;
   }
   
