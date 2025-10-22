@@ -38,14 +38,7 @@ module.exports = async (req, res) => {
     // Get user's subscriptions from database
     const { data: subscriptions, error } = await supabase
       .from('subscriptions')
-      .select(`
-        *,
-        discord_servers!inner(
-          discord_server_id,
-          server_name,
-          server_icon
-        )
-      `)
+      .select('*')
       .eq('discord_user_id', userId)
       .order('created_at', { ascending: false });
 
@@ -56,19 +49,43 @@ module.exports = async (req, res) => {
 
     console.log(`✅ Found ${subscriptions.length} subscriptions for user: ${userId}`);
 
-    // Format the response
-    const formattedSubscriptions = subscriptions.map(sub => ({
-      id: sub.stripe_subscription_id,
-      status: sub.status,
-      serverId: sub.discord_server_id,
-      serverName: sub.discord_servers?.server_name || 'Unknown Server',
-      serverIcon: sub.discord_servers?.server_icon,
-      currentPeriodStart: sub.current_period_start,
-      currentPeriodEnd: sub.current_period_end,
-      cancelledAt: sub.cancelled_at,
-      createdAt: sub.created_at,
-      priceId: sub.price_id
-    }));
+    // Get server information for each subscription
+    const formattedSubscriptions = await Promise.all(
+      subscriptions.map(async (sub) => {
+        // Get server information separately since we removed the foreign key relationship
+        let serverName = 'Unknown Server';
+        let serverIcon = null;
+        
+        try {
+          const { data: serverData, error: serverError } = await supabase
+            .from('discord_servers')
+            .select('server_name, server_icon')
+            .eq('discord_server_id', sub.discord_server_id)
+            .limit(1)
+            .single();
+          
+          if (!serverError && serverData) {
+            serverName = serverData.server_name;
+            serverIcon = serverData.server_icon;
+          }
+        } catch (error) {
+          console.log(`Could not fetch server info for ${sub.discord_server_id}:`, error.message);
+        }
+        
+        return {
+          id: sub.stripe_subscription_id,
+          status: sub.status,
+          serverId: sub.discord_server_id,
+          serverName: serverName,
+          serverIcon: serverIcon,
+          currentPeriodStart: sub.current_period_start,
+          currentPeriodEnd: sub.current_period_end,
+          cancelledAt: sub.cancelled_at,
+          createdAt: sub.created_at,
+          priceId: sub.price_id
+        };
+      })
+    );
 
     res.json({
       success: true,

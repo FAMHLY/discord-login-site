@@ -975,10 +975,11 @@ app.post('/api/servers/:serverId/configure', async (req, res) => {
     }
 
     let serverResult;
+    let error;
     if (existingServer) {
       // Update existing server record for this user
       console.log('Updating existing server record for user');
-      const { data, error } = await supabase
+      const { data, error: updateError } = await supabase
         .from('discord_servers')
         .update({
           server_name: actualServerName,
@@ -993,11 +994,11 @@ app.post('/api/servers/:serverId/configure', async (req, res) => {
         .select();
       
       serverResult = data;
-      error = error;
+      error = updateError;
     } else {
       // Create new server record for this user
       console.log('Creating new server record for user');
-      const { data, error } = await supabase
+      const { data, error: insertError } = await supabase
         .from('discord_servers')
         .insert({
           owner_id: user.id,
@@ -1013,7 +1014,7 @@ app.post('/api/servers/:serverId/configure', async (req, res) => {
         .select();
       
       serverResult = data;
-      error = error;
+      error = insertError;
     }
 
     if (error) {
