@@ -961,21 +961,60 @@ app.post('/api/servers/:serverId/configure', async (req, res) => {
       userRole = 'Add Bot to Server';
     }
     
-    const { data: serverResult, error } = await supabase
+    // Check if this user already has this server
+    const { data: existingServer, error: checkError } = await supabase
       .from('discord_servers')
-      .upsert({
-        owner_id: user.id,
-        discord_server_id: serverId,
-        server_name: actualServerName,
-        server_icon: serverIconUrl,
-        user_role: userRole,
-        invite_code: inviteCode,
-        owner_discord_id: user.user_metadata?.provider_id,
-        updated_at: new Date().toISOString()
-      }, { 
-        onConflict: 'discord_server_id',
-        ignoreDuplicates: false 
-      });
+      .select('*')
+      .eq('owner_id', user.id)
+      .eq('discord_server_id', serverId)
+      .single();
+
+    if (checkError && checkError.code !== 'PGRST116') {
+      console.error('Error checking existing server:', checkError);
+      return res.status(500).json({ error: 'Database error', details: checkError.message });
+    }
+
+    let serverResult;
+    if (existingServer) {
+      // Update existing server record for this user
+      console.log('Updating existing server record for user');
+      const { data, error } = await supabase
+        .from('discord_servers')
+        .update({
+          server_name: actualServerName,
+          server_icon: serverIconUrl,
+          user_role: userRole,
+          invite_code: inviteCode,
+          owner_discord_id: user.user_metadata?.provider_id,
+          updated_at: new Date().toISOString()
+        })
+        .eq('owner_id', user.id)
+        .eq('discord_server_id', serverId)
+        .select();
+      
+      serverResult = data;
+      error = error;
+    } else {
+      // Create new server record for this user
+      console.log('Creating new server record for user');
+      const { data, error } = await supabase
+        .from('discord_servers')
+        .insert({
+          owner_id: user.id,
+          discord_server_id: serverId,
+          server_name: actualServerName,
+          server_icon: serverIconUrl,
+          user_role: userRole,
+          invite_code: inviteCode,
+          owner_discord_id: user.user_metadata?.provider_id,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select();
+      
+      serverResult = data;
+      error = error;
+    }
 
     if (error) {
       console.error('Database error:', error);
