@@ -367,24 +367,24 @@ function createServerCard(server) {
       
       <div class="server-stats">
         <div class="stat-item">
-          <span class="stat-label">Total Invite Clicks:</span>
-          <span class="stat-value">${server.total_invite_clicks || 0}</span>
+          <span class="stat-label">Your Invite Clicks:</span>
+          <span class="stat-value">${server.user_total_invite_clicks || 0}</span>
         </div>
         <div class="stat-item">
-          <span class="stat-label">Active Members:</span>
-          <span class="stat-value">${server.total_joins || 0}</span>
+          <span class="stat-label">Your Referrals:</span>
+          <span class="stat-value">${server.user_total_joins || 0}</span>
         </div>
         <div class="stat-item">
-          <span class="stat-label">Join Rate:</span>
-          <span class="stat-value">${Math.round(parseFloat(server.conversion_rate) || 0)}%</span>
+          <span class="stat-label">Your Join Rate:</span>
+          <span class="stat-value">${Math.round(parseFloat(server.user_conversion_rate) || 0)}%</span>
         </div>
         <div class="stat-item">
-          <span class="stat-label">Conversion Rate:</span>
-          <span class="stat-value">${Math.round(parseFloat(server.paid_conversion_rate) || 0)}%</span>
+          <span class="stat-label">Your Conversion Rate:</span>
+          <span class="stat-value">${Math.round(parseFloat(server.user_paid_conversion_rate) || 0)}%</span>
         </div>
         <div class="stat-item">
-          <span class="stat-label">Monthly Revenue:</span>
-          <span class="stat-value">$${server.monthly_revenue || '0.00'}</span>
+          <span class="stat-label">Your Monthly Revenue:</span>
+          <span class="stat-value">$${server.user_monthly_revenue || '0.00'}</span>
         </div>
       </div>
       
