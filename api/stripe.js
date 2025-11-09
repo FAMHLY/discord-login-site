@@ -25,7 +25,7 @@ const FREE_ROLE_NAME = '🔴';
 /**
  * Create a Stripe Checkout Session for Discord server subscription
  */
-async function createCheckoutSession(customerId, serverId, serverName, priceId, successUrl, cancelUrl) {
+async function createCheckoutSession(customerId, serverId, serverName, priceId, successUrl, cancelUrl, discordUserId) {
   try {
     console.log(`Creating checkout session for server: ${serverId}`);
     
@@ -44,11 +44,13 @@ async function createCheckoutSession(customerId, serverId, serverName, priceId, 
       metadata: {
         discord_server_id: serverId,
         discord_server_name: serverName,
+        discord_user_id: discordUserId,
       },
       subscription_data: {
         metadata: {
           discord_server_id: serverId,
           discord_server_name: serverName,
+          discord_user_id: discordUserId,
         },
       },
     });
@@ -62,6 +64,156 @@ async function createCheckoutSession(customerId, serverId, serverName, priceId, 
     
   } catch (error) {
     console.error('Error creating checkout session:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
+/**
+ * Create a Stripe checkout session initiated by a Discord member via slash command
+ */
+async function createMemberCheckoutSession({
+  discordUserId,
+  discordUsername,
+  serverId,
+  serverName,
+  priceId,
+  successUrl,
+  cancelUrl
+}) {
+  try {
+    if (!priceId) {
+      priceId = process.env.STRIPE_DEFAULT_PRICE_ID;
+    }
+
+    if (!priceId) {
+      return { success: false, error: 'Price ID not configured' };
+    }
+
+    let existingCustomerId = null;
+
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('subscriptions')
+        .select('stripe_customer_id')
+        .eq('discord_user_id', discordUserId)
+        .eq('discord_server_id', serverId)
+        .not('stripe_customer_id', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (error) {
+        console.warn('⚠️ Failed to look up existing customer:', error);
+      } else if (data && data.length > 0) {
+        existingCustomerId = data[0].stripe_customer_id;
+      }
+    }
+
+    const metadata = {
+      discord_user_id: discordUserId,
+      discord_username: discordUsername,
+      discord_server_id: serverId,
+      discord_server_name: serverName
+    };
+
+    const sessionParams = {
+      mode: 'subscription',
+      line_items: [
+        {
+          price: priceId,
+          quantity: 1,
+        },
+      ],
+      success_url:
+        successUrl ||
+        process.env.MEMBER_CHECKOUT_SUCCESS_URL ||
+        process.env.PUBLIC_SITE_URL ||
+        'https://discord.com',
+      cancel_url:
+        cancelUrl ||
+        process.env.MEMBER_CHECKOUT_CANCEL_URL ||
+        process.env.PUBLIC_SITE_URL ||
+        'https://discord.com',
+      metadata,
+      subscription_data: {
+        metadata
+      }
+    };
+
+    if (existingCustomerId) {
+      sessionParams.customer = existingCustomerId;
+    } else {
+      sessionParams.customer_creation = 'always';
+    }
+
+    const session = await stripe.checkout.sessions.create(sessionParams);
+    console.log(`✅ Member checkout session created: ${session.id}`);
+
+    return {
+      success: true,
+      sessionId: session.id,
+      url: session.url
+    };
+  } catch (error) {
+    console.error('Error creating member checkout session:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
+/**
+ * Create a Stripe billing portal session for a Discord member
+ */
+async function createMemberPortalSession({
+  discordUserId,
+  serverId,
+  returnUrl
+}) {
+  try {
+    if (!supabase) {
+      return { success: false, error: 'Database not configured' };
+    }
+
+    const { data, error } = await supabase
+      .from('subscriptions')
+      .select('stripe_customer_id')
+      .eq('discord_user_id', discordUserId)
+      .eq('discord_server_id', serverId)
+      .not('stripe_customer_id', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (error) {
+      console.error('Error fetching subscription for portal session:', error);
+      return { success: false, error: error.message };
+    }
+
+    if (!data || data.length === 0 || !data[0].stripe_customer_id) {
+      return { success: false, error: 'No Stripe customer found for this user.' };
+    }
+
+    const session = await stripe.billingPortal.sessions.create({
+      customer: data[0].stripe_customer_id,
+      return_url:
+        returnUrl ||
+        process.env.MEMBER_PORTAL_RETURN_URL ||
+        process.env.MEMBER_CHECKOUT_SUCCESS_URL ||
+        process.env.PUBLIC_SITE_URL ||
+        'https://discord.com'
+    });
+
+    console.log(`✅ Member portal session created: ${session.id}`);
+
+    return {
+      success: true,
+      url: session.url
+    };
+  } catch (error) {
+    console.error('Error creating member portal session:', error);
     return {
       success: false,
       error: error.message
@@ -155,6 +307,96 @@ async function handleSubscriptionCreated(subscription) {
     
   } catch (error) {
     console.error('Error handling subscription created:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Handle subscription updates (status changes, period renewals, metadata updates)
+ */
+async function handleSubscriptionUpdated(subscription) {
+  try {
+    console.log(`📝 Subscription updated: ${subscription.id} -> ${subscription.status}`);
+
+    if (!supabase) {
+      console.warn('Supabase client not available - skipping subscription update');
+      return { success: true, warning: 'Database not available' };
+    }
+
+    // Ensure we have the customer's Discord user ID
+    let discordUserId = null;
+    if (subscription.customer) {
+      if (typeof subscription.customer === 'string') {
+        try {
+          const customer = await stripe.customers.retrieve(subscription.customer);
+          discordUserId = customer.metadata?.discord_user_id || null;
+        } catch (customerError) {
+          console.error('⚠️ Failed to retrieve customer for subscription update:', customerError);
+        }
+      } else {
+        discordUserId = subscription.customer.metadata?.discord_user_id || null;
+      }
+    }
+
+    const updateData = {
+      status: subscription.status,
+      price_id: subscription.items?.data?.[0]?.price?.id,
+      metadata: subscription.metadata,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (discordUserId) {
+      updateData.discord_user_id = discordUserId;
+    }
+
+    if (subscription.current_period_start) {
+      try {
+        updateData.current_period_start = new Date(subscription.current_period_start * 1000).toISOString();
+      } catch (error) {
+        console.error('Error parsing current_period_start (update):', error);
+      }
+    }
+
+    if (subscription.current_period_end) {
+      try {
+        updateData.current_period_end = new Date(subscription.current_period_end * 1000).toISOString();
+      } catch (error) {
+        console.error('Error parsing current_period_end (update):', error);
+      }
+    }
+
+    if (subscription.canceled_at) {
+      try {
+        updateData.cancelled_at = new Date(subscription.canceled_at * 1000).toISOString();
+      } catch (error) {
+        console.error('Error parsing canceled_at (update):', error);
+      }
+    } else if (subscription.status === 'active') {
+      // Clear cancelled_at if subscription reactivated
+      updateData.cancelled_at = null;
+    }
+
+    // Update the subscription in the database
+    const { data: updatedRows, error: updateError } = await supabase
+      .from('subscriptions')
+      .update(updateData)
+      .eq('stripe_subscription_id', subscription.id)
+      .select();
+
+    if (updateError) {
+      console.error('Error updating subscription:', updateError);
+      return { success: false, error: updateError.message };
+    }
+
+    if (!updatedRows || updatedRows.length === 0) {
+      console.log('⚠️ Subscription not found in database. Creating a new record...');
+      return await handleSubscriptionCreated(subscription);
+    }
+
+    console.log(`✅ Subscription updated in database: ${subscription.id}`);
+    return { success: true };
+  } catch (error) {
+    console.error('Error handling subscription updated:', error);
     return { success: false, error: error.message };
   }
 }
@@ -302,12 +544,30 @@ async function createOrGetCustomer(discordUserId, email) {
     });
     
     if (customers.data.length > 0) {
-      console.log(`Found existing customer: ${customers.data[0].id}`);
-      return {
-        success: true,
-        customerId: customers.data[0].id,
-        isNew: false
-      };
+    const existingCustomer = customers.data[0];
+    console.log(`Found existing customer: ${existingCustomer.id}`);
+
+    // Ensure Discord user ID is stored in metadata
+    if (discordUserId && existingCustomer.metadata?.discord_user_id !== discordUserId) {
+      try {
+        const updatedMetadata = {
+          ...(existingCustomer.metadata || {}),
+          discord_user_id: discordUserId
+        };
+        await stripe.customers.update(existingCustomer.id, {
+          metadata: updatedMetadata
+        });
+        console.log(`🔄 Updated customer metadata with Discord user ID for ${existingCustomer.id}`);
+      } catch (metadataError) {
+        console.error('⚠️ Failed to update customer metadata:', metadataError);
+      }
+    }
+    
+    return {
+      success: true,
+      customerId: existingCustomer.id,
+      isNew: false
+    };
     }
     
     // Create new customer
@@ -336,7 +596,10 @@ async function createOrGetCustomer(discordUserId, email) {
 
 module.exports = {
   createCheckoutSession,
+  createMemberCheckoutSession,
+  createMemberPortalSession,
   handleSubscriptionCreated,
+  handleSubscriptionUpdated,
   handleSubscriptionDeleted,
   updateServerConversionRate,
   getCustomerSubscriptions,

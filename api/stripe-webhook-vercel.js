@@ -1,6 +1,6 @@
 // Stripe webhook handler specifically designed for Vercel
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-const { handleSubscriptionCreated, handleSubscriptionDeleted, updateServerConversionRate } = require('./stripe');
+const { handleSubscriptionCreated, handleSubscriptionUpdated, handleSubscriptionDeleted, updateServerConversionRate } = require('./stripe');
 const { handleSubscriptionChange } = require('../role-manager');
 
 module.exports = async (req, res) => {
@@ -55,6 +55,7 @@ module.exports = async (req, res) => {
         console.log('🎉 Subscription created');
         const subscription = event.data.object;
         await handleSubscriptionCreated(subscription);
+        await handleSubscriptionUpdated(subscription);
         
         // Update Discord roles
         if (subscription.metadata?.discord_server_id && subscription.customer) {
@@ -69,6 +70,7 @@ module.exports = async (req, res) => {
       case 'customer.subscription.updated':
         console.log('📝 Subscription updated');
         const updatedSubscription = event.data.object;
+        await handleSubscriptionUpdated(updatedSubscription);
         
         // Handle subscription status changes
         if (updatedSubscription.metadata?.discord_server_id && updatedSubscription.customer) {

@@ -196,22 +196,67 @@ async function updateAllMemberRoles(guild, serverId) {
 
 /**
  * Handle subscription status changes and update roles accordingly
+ * @param {string} discordUserId - Discord user ID (not Stripe customer ID)
+ * @param {string} serverId - Discord server ID
+ * @param {string} status - Subscription status
+ * @param {Client} client - Optional Discord client (if not provided, will try to create one)
  */
-async function handleSubscriptionChange(customerId, serverId, status) {
+async function handleSubscriptionChange(discordUserId, serverId, status, client = null) {
   try {
-    console.log(`📊 Handling subscription change: ${customerId} in ${serverId} -> ${status}`);
+    console.log(`📊 Handling subscription change: ${discordUserId} in ${serverId} -> ${status}`);
+    
+    // Get or create Discord client
+    let discordClient = client;
+    if (!discordClient) {
+      // Try to use the client from bot-server.js if available
+      try {
+        // Check if we can access the client from bot-server
+        // Note: This will only work if bot-server.js has already been loaded/started
+        const path = require('path');
+        const botServerPath = path.join(__dirname, 'bot-server.js');
+        delete require.cache[require.resolve(botServerPath)];
+        const botServer = require('../bot-server');
+        discordClient = botServer?.client;
+      } catch (e) {
+        // If bot-server isn't loaded, create a temporary client
+        console.log('Creating temporary Discord client for role assignment...');
+        const { Client, GatewayIntentBits } = require('discord.js');
+        discordClient = new Client({
+          intents: [
+            GatewayIntentBits.Guilds,
+            GatewayIntentBits.GuildMembers
+          ]
+        });
+        await discordClient.login(process.env.DISCORD_BOT_TOKEN);
+        // Wait for ready
+        await new Promise((resolve) => {
+          discordClient.once('clientReady', resolve);
+        });
+      }
+    }
+    
+    if (!discordClient || !discordClient.isReady()) {
+      console.error('Discord client not available for role assignment');
+      return { success: false, error: 'Discord client not available' };
+    }
     
     // Find the guild
-    const guild = globalClient?.guilds?.cache?.get(serverId);
+    const guild = discordClient.guilds.cache.get(serverId);
     if (!guild) {
       console.error(`Guild ${serverId} not found`);
       return { success: false, error: 'Guild not found' };
     }
     
-    // Find the member (assuming customerId is Discord user ID)
-    const member = guild.members.cache.get(customerId);
-    if (!member) {
-      console.log(`Member ${customerId} not found in guild ${serverId}`);
+    // Fetch the member (might not be in cache)
+    let member;
+    try {
+      member = guild.members.cache.get(discordUserId);
+      if (!member) {
+        console.log(`Member not in cache, fetching ${discordUserId}...`);
+        member = await guild.members.fetch(discordUserId);
+      }
+    } catch (fetchError) {
+      console.error(`Member ${discordUserId} not found in guild ${serverId}:`, fetchError.message);
       return { success: false, error: 'Member not found in guild' };
     }
     

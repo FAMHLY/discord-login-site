@@ -7,12 +7,16 @@ const cookieParser = require('cookie-parser');
 const crypto = require('crypto');
 const { 
   createCheckoutSession, 
+  createMemberCheckoutSession,
+  createMemberPortalSession,
   createOrGetCustomer, 
   getCustomerSubscriptions 
 } = require('./stripe');
 // Discord REST API for serverless environment
 
 const app = express();
+const BOT_API_TOKEN = process.env.BOT_API_TOKEN;
+const STRIPE_DEFAULT_PRICE_ID = process.env.STRIPE_DEFAULT_PRICE_ID;
 
 // Discord REST API functions for serverless environment
 async function getDiscordGuilds() {
@@ -1689,7 +1693,8 @@ app.post('/api/stripe/create-checkout', async (req, res) => {
       server.server_name,
       priceId,
       successUrl,
-      cancelUrl
+      cancelUrl,
+      discordUserId
     );
 
     if (!checkoutResult.success) {
@@ -1752,6 +1757,109 @@ app.get('/api/stripe/subscriptions/:serverId', async (req, res) => {
   } catch (error) {
     console.error('Error fetching subscriptions:', error);
     res.status(500).json({ error: 'Failed to fetch subscriptions', details: error.message });
+  }
+});
+
+// === Member-facing Stripe endpoints (triggered by bot slash commands) ===
+
+function validateBotRequest(req, res) {
+  if (!BOT_API_TOKEN) {
+    res.status(500).json({ success: false, error: 'Bot token not configured' });
+    return false;
+  }
+
+  const token = req.headers['x-bot-token'];
+  if (!token || token !== BOT_API_TOKEN) {
+    res.status(401).json({ success: false, error: 'Unauthorized' });
+    return false;
+  }
+
+  return true;
+}
+
+app.post('/api/stripe/member/checkout', async (req, res) => {
+  console.log('=== /api/stripe/member/checkout endpoint called ===');
+
+  if (!validateBotRequest(req, res)) {
+    return;
+  }
+
+  try {
+    const {
+      discordUserId,
+      discordUsername,
+      serverId,
+      serverName,
+      priceId,
+      successUrl,
+      cancelUrl
+    } = req.body || {};
+
+    if (!discordUserId || !serverId || !serverName) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields (discordUserId, serverId, serverName)'
+      });
+    }
+
+    const checkoutResult = await createMemberCheckoutSession({
+      discordUserId,
+      discordUsername,
+      serverId,
+      serverName,
+      priceId: priceId || STRIPE_DEFAULT_PRICE_ID,
+      successUrl,
+      cancelUrl
+    });
+
+    if (!checkoutResult.success) {
+      return res.status(500).json(checkoutResult);
+    }
+
+    return res.json({
+      success: true,
+      url: checkoutResult.url
+    });
+  } catch (error) {
+    console.error('Error creating member checkout session:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/stripe/member/portal', async (req, res) => {
+  console.log('=== /api/stripe/member/portal endpoint called ===');
+
+  if (!validateBotRequest(req, res)) {
+    return;
+  }
+
+  try {
+    const { discordUserId, serverId, returnUrl } = req.body || {};
+
+    if (!discordUserId || !serverId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields (discordUserId, serverId)'
+      });
+    }
+
+    const portalResult = await createMemberPortalSession({
+      discordUserId,
+      serverId,
+      returnUrl
+    });
+
+    if (!portalResult.success) {
+      return res.status(400).json(portalResult);
+    }
+
+    return res.json({
+      success: true,
+      url: portalResult.url
+    });
+  } catch (error) {
+    console.error('Error creating member portal session:', error);
+    return res.status(500).json({ success: false, error: error.message });
   }
 });
 
