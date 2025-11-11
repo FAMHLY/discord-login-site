@@ -313,9 +313,6 @@ function createServerCard(server) {
   
   // Check if user has an active subscription for this server
   const hasActiveSubscription = server.user_subscription && server.user_subscription.status === 'active';
-  const membershipIndicator = hasActiveSubscription
-    ? '<span class="membership-indicator paid">🟢 Paid</span>'
-    : '<span class="membership-indicator free">🔴 Free</span>';
   
   // Format Discord server icon URL properly
   let serverIconUrl = 'https://cdn.discordapp.com/embed/avatars/0.png'; // Default Discord icon
@@ -358,7 +355,6 @@ function createServerCard(server) {
         <div class="server-info">
           <h4>${server.name}</h4>
           <p>${server.user_role === 'Add Bot to Server' ? 'Member' : (server.user_role || 'Member')}</p>
-          ${membershipIndicator}
         </div>
       </div>
       
