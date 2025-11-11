@@ -84,12 +84,28 @@ async function createMemberCheckoutSession({
   cancelUrl
 }) {
   try {
-    if (!priceId) {
-      priceId = process.env.STRIPE_DEFAULT_PRICE_ID;
+    let effectivePriceId = priceId || process.env.STRIPE_DEFAULT_PRICE_ID;
+
+    if (!effectivePriceId && supabase) {
+      try {
+        const { data: serverConfig, error: serverError } = await supabase
+          .from('discord_servers')
+          .select('stripe_price_id')
+          .eq('discord_server_id', serverId)
+          .single();
+
+        if (serverError) {
+          console.warn('⚠️ Unable to load server price configuration:', serverError);
+        } else if (serverConfig?.stripe_price_id) {
+          effectivePriceId = serverConfig.stripe_price_id;
+        }
+      } catch (configError) {
+        console.warn('⚠️ Failed to fetch server price configuration:', configError);
+      }
     }
 
-    if (!priceId) {
-      return { success: false, error: 'Price ID not configured' };
+    if (!effectivePriceId) {
+      return { success: false, error: 'No Stripe price configured for this server.' };
     }
 
     let existingCustomerId = null;
@@ -122,7 +138,7 @@ async function createMemberCheckoutSession({
       mode: 'subscription',
       line_items: [
         {
-          price: priceId,
+          price: effectivePriceId,
           quantity: 1,
         },
       ],
