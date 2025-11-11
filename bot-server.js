@@ -51,11 +51,26 @@ client.once('ready', async () => {
     console.log(`🤖 Bot is ready! Logged in as ${client.user.tag}`);
     console.log(`📊 Serving ${client.guilds.cache.size} servers`);
     
-    // Log all servers
-    client.guilds.cache.forEach(guild => {
+    const commands = [
+        new SlashCommandBuilder()
+            .setName('subscribe')
+            .setDescription('Get the latest membership subscription link'),
+        new SlashCommandBuilder()
+            .setName('unsubscribe')
+            .setDescription('Get the link to manage or cancel your membership subscription')
+    ];
+
+    // Log all servers and register commands
+    for (const guild of client.guilds.cache.values()) {
         console.log(`   - ${guild.name} (${guild.id})`);
-    });
-    
+        try {
+            await guild.commands.set(commands.map(cmd => cmd.setDMPermission(false).toJSON()));
+            console.log(`✅ Slash commands registered in ${guild.name}`);
+        } catch (error) {
+            console.error(`❌ Failed to register commands in ${guild.name}:`, error);
+        }
+    }
+
     // Set up subscription checks every 30 minutes
     setupRecurringSubscriptionCheck();
     
@@ -63,13 +78,6 @@ client.once('ready', async () => {
     setTimeout(() => {
         checkSubscriptions();
     }, 5000);
-
-    // Register slash commands for membership management (per guild for fast availability)
-    try {
-        await registerSlashCommands();
-    } catch (error) {
-        console.error('❌ Failed to register slash commands:', error);
-    }
 });
 
 // Bot error handling
@@ -84,7 +92,20 @@ client.on('warn', info => {
 client.on('guildCreate', async guild => {
     console.log(`➕ Joined new guild: ${guild.name} (${guild.id}) - registering slash commands`);
     try {
-        await registerSlashCommandsForGuild(guild);
+        const commands = [
+            new SlashCommandBuilder()
+                .setName('subscribe')
+                .setDescription('Get the latest membership subscription link')
+                .setDMPermission(false)
+                .toJSON(),
+            new SlashCommandBuilder()
+                .setName('unsubscribe')
+                .setDescription('Get the link to manage or cancel your membership subscription')
+                .setDMPermission(false)
+                .toJSON()
+        ];
+        await guild.commands.set(commands);
+        console.log(`✅ Slash commands registered in ${guild.name}`);
     } catch (error) {
         console.error(`❌ Failed to register commands for ${guild.name}:`, error);
     }
@@ -387,58 +408,6 @@ ${newSubscriptions > 0 || cancelledSubscriptions > 0 ? `\n**Net Change Today:** 
     } catch (error) {
         console.error('❌ Error sending subscription report:', error);
     }
-}
-
-/**
- * Register slash commands for membership actions
- */
-async function registerSlashCommands() {
-    const commands = [
-        new SlashCommandBuilder()
-            .setName('subscribe')
-            .setDescription('Get the latest membership subscription link'),
-        new SlashCommandBuilder()
-            .setName('unsubscribe')
-            .setDescription('Get the link to manage or cancel your membership subscription')
-    ];
-
-    const guilds = [...client.guilds.cache.values()];
-    if (guilds.length === 0) {
-        console.warn('⚠️ No guilds available to register slash commands');
-        return;
-    }
-
-    console.log(`⚙️ Registering slash commands in ${guilds.length} guild(s)...`);
-    for (const guild of guilds) {
-        try {
-            await registerSlashCommandsForGuild(guild, commands);
-        } catch (error) {
-            console.error(`❌ Failed to register commands for ${guild.name}:`, error);
-        }
-    }
-}
-
-/**
- * Register slash commands for a specific guild
- */
-async function registerSlashCommandsForGuild(guild, commands) {
-    const cmds = commands
-        ? commands.map(cmd => cmd.setDMPermission(false).toJSON())
-        : [
-              new SlashCommandBuilder()
-                  .setName('subscribe')
-                  .setDescription('Get the latest membership subscription link')
-                  .setDMPermission(false)
-                  .toJSON(),
-              new SlashCommandBuilder()
-                  .setName('unsubscribe')
-                  .setDescription('Get the link to manage or cancel your membership subscription')
-                  .setDMPermission(false)
-                  .toJSON()
-          ];
-
-    await guild.commands.set(cmds);
-    console.log(`✅ Slash commands registered in ${guild.name}`);
 }
 
 /**
