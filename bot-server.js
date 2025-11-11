@@ -295,9 +295,38 @@ async function updateAllMemberRolesForActiveServers() {
             return;
         }
 
-        // Get unique server IDs
-        const serverIds = [...new Set(activeSubscriptions.map(sub => sub.discord_server_id))];
-        console.log(`🔄 Updating roles for ${serverIds.length} server(s) with active subscriptions`);
+        // Collect target servers from active subscriptions and configured server settings
+        const serverIdSet = new Set(
+            (activeSubscriptions || [])
+                .map(sub => sub.discord_server_id)
+                .filter(Boolean)
+        );
+
+        try {
+            const { data: configuredServers, error: settingsError } = await supabase
+                .from('server_settings')
+                .select('discord_server_id');
+
+            if (settingsError) {
+                console.warn('⚠️ Error fetching configured servers for role updates:', settingsError);
+            } else {
+                for (const entry of configuredServers || []) {
+                    if (entry?.discord_server_id) {
+                        serverIdSet.add(entry.discord_server_id);
+                    }
+                }
+            }
+        } catch (settingsException) {
+            console.warn('⚠️ Failed to merge configured servers for role updates:', settingsException);
+        }
+
+        const serverIds = [...serverIdSet];
+        if (serverIds.length === 0) {
+            console.log('ℹ️ No servers found for role synchronization.');
+            return;
+        }
+
+        console.log(`🔄 Updating roles for ${serverIds.length} configured server(s)`);
 
         let totalUpdated = 0;
         let totalErrors = 0;
