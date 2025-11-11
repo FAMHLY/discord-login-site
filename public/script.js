@@ -354,7 +354,6 @@ function createServerCard(server) {
              onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
         <div class="server-info">
           <h4>${server.name}</h4>
-          <p>${server.user_role === 'Add Bot to Server' ? 'Member' : (server.user_role || 'Member')}</p>
         </div>
       </div>
       
@@ -387,10 +386,6 @@ function createServerCard(server) {
         <div class="stat-item">
           <span class="stat-label">Your Conversion Rate:</span>
           <span class="stat-value">${Math.round(parseFloat(server.user_paid_conversion_rate) || 0)}%</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-label">Your Monthly Revenue:</span>
-          <span class="stat-value">$${server.user_monthly_revenue || '0.00'}</span>
         </div>
       </div>
       
