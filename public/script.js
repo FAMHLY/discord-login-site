@@ -403,8 +403,7 @@ function createServerCard(server) {
             ${hasActiveSubscription ? 
               `<button class="btn btn-cancel" data-action="cancel-subscription" data-server-id="${server.id}" data-subscription-id="${server.user_subscription.id}">
                 Cancel Subscription
-              </button>` :
-              `<span class="action-note">Use the <code>/subscribe</code> command in Discord to join.</span>`
+              </button>` : ''
             }
             <button class="btn btn-danger" data-action="remove" data-server-id="${server.id}">
               Remove Server
