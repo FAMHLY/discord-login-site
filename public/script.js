@@ -313,6 +313,9 @@ function createServerCard(server) {
   
   // Check if user has an active subscription for this server
   const hasActiveSubscription = server.user_subscription && server.user_subscription.status === 'active';
+  const membershipIndicator = hasActiveSubscription
+    ? '<span class="membership-indicator paid">🟢 Paid</span>'
+    : '<span class="membership-indicator free">🔴 Free</span>';
   
   // Format Discord server icon URL properly
   let serverIconUrl = 'https://cdn.discordapp.com/embed/avatars/0.png'; // Default Discord icon
@@ -355,6 +358,7 @@ function createServerCard(server) {
         <div class="server-info">
           <h4>${server.name}</h4>
           <p>${server.user_role === 'Add Bot to Server' ? 'Member' : (server.user_role || 'Member')}</p>
+          ${membershipIndicator}
         </div>
       </div>
       
@@ -400,11 +404,6 @@ function createServerCard(server) {
             Configure Server
           </button>` :
           `<div class="action-buttons">
-            ${hasActiveSubscription ? 
-              `<button class="btn btn-cancel" data-action="cancel-subscription" data-server-id="${server.id}" data-subscription-id="${server.user_subscription.id}">
-                Cancel Subscription
-              </button>` : ''
-            }
             <button class="btn btn-danger" data-action="remove" data-server-id="${server.id}">
               Remove Server
             </button>
@@ -591,68 +590,11 @@ function handleServerActionClick(e) {
     case 'copy-invite':
       copyInvite(serverId);
       break;
-    case 'cancel-subscription':
-      const subscriptionId = button.dataset.subscriptionId;
-      handleCancelSubscription(button, serverId, subscriptionId);
-      break;
     case 'enable-subscriptions':
       enableServerSubscriptions(serverId);
       break;
     default:
       console.log('Unknown action:', action);
-  }
-}
-
-async function handleCancelSubscription(button, serverId, subscriptionId) {
-  console.log(`Cancel subscription button clicked for server: ${serverId}, subscription: ${subscriptionId}`);
-  
-  // Confirm cancellation
-  if (!confirm('Are you sure you want to cancel your subscription? To gain full access, subscribe again.')) {
-    return;
-  }
-  
-  try {
-    // Show loading state
-    const originalText = button.textContent;
-    button.textContent = '⏳ Cancelling...';
-    button.disabled = true;
-    
-    const response = await fetch('/api/cancel-subscription', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        subscriptionId: subscriptionId,
-        serverId: serverId
-      })
-    });
-
-    const result = await response.json();
-    
-    if (result.success) {
-      console.log('Subscription cancelled successfully');
-      showMessage('✅ Subscription cancelled successfully. You will retain access until the end of your current billing period.', 'success');
-      
-      // Reload servers to show updated status
-      setTimeout(() => {
-        loadServers();
-      }, 2000);
-    } else {
-      console.error('Failed to cancel subscription:', result.error);
-      showMessage(`Failed to cancel subscription: ${result.error}`, 'error');
-      
-      // Reset button
-      button.textContent = originalText;
-      button.disabled = false;
-    }
-  } catch (error) {
-    console.error('Error cancelling subscription:', error);
-    showMessage(`Error cancelling subscription: ${error.message}`, 'error');
-    
-    // Reset button
-    button.textContent = originalText;
-    button.disabled = false;
   }
 }
 
