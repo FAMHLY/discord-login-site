@@ -17,7 +17,10 @@ const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
 const PORT = process.env.PORT || 3001;
 const LINKWIZARD_CHANNEL_NAME = 'linkwizard'; // Channel name to post reports to
 const MEMBERSHIP_CHANNEL_NAME = 'membership'; // Channel name for subscribe/unsubscribe commands
-const MEMBER_API_BASE_URL = process.env.MEMBER_API_BASE_URL || process.env.API_BASE_URL || process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000';
+const MEMBER_API_BASE_URL =
+  process.env.MEMBER_API_BASE_URL ||
+  process.env.API_BASE_URL ||
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
 const BOT_API_TOKEN = process.env.BOT_API_TOKEN;
 const STRIPE_DEFAULT_PRICE_ID = process.env.STRIPE_DEFAULT_PRICE_ID; // fallback for slash commands
 
