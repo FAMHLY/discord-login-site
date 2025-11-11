@@ -384,8 +384,8 @@ function createServerCard(server) {
           <span class="stat-value">${Math.round(parseFloat(server.user_conversion_rate) || 0)}%</span>
         </div>
         <div class="stat-item">
-          <span class="stat-label">Your Conversion Rate:</span>
-          <span class="stat-value">${Math.round(parseFloat(server.user_paid_conversion_rate) || 0)}%</span>
+          <span class="stat-label">Paid Conversion Rate:</span>
+          <span class="stat-value">${Math.round(parseFloat(server.paid_conversion_rate) || 0)}%</span>
         </div>
       </div>
       
