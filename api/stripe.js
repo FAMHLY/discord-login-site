@@ -92,7 +92,9 @@ async function createMemberCheckoutSession({
           .from('discord_servers')
           .select('stripe_price_id')
           .eq('discord_server_id', serverId)
-          .single();
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
 
         if (serverError) {
           console.warn('⚠️ Unable to load server price configuration:', serverError);
