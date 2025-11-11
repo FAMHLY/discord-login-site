@@ -88,18 +88,29 @@ async function createMemberCheckoutSession({
 
     if (!effectivePriceId && supabase) {
       try {
-        const { data: serverConfig, error: serverError } = await supabase
-          .from('discord_servers')
+        const { data: serverSettings, error: settingsError } = await supabase
+          .from('server_settings')
           .select('stripe_price_id')
           .eq('discord_server_id', serverId)
-          .order('updated_at', { ascending: false })
-          .limit(1)
           .maybeSingle();
 
-        if (serverError) {
-          console.warn('⚠️ Unable to load server price configuration:', serverError);
-        } else if (serverConfig?.stripe_price_id) {
-          effectivePriceId = serverConfig.stripe_price_id;
+        if (settingsError && settingsError.code !== 'PGRST116') {
+          console.warn('⚠️ Unable to load server settings:', settingsError);
+        } else if (serverSettings?.stripe_price_id) {
+          effectivePriceId = serverSettings.stripe_price_id;
+        } else {
+          const { data: legacyConfig, error: legacyError } = await supabase
+            .from('discord_servers')
+            .select('stripe_price_id')
+            .eq('discord_server_id', serverId)
+            .order('updated_at', { ascending: false })
+            .limit(1);
+
+          if (legacyError) {
+            console.warn('⚠️ Unable to load legacy server price configuration:', legacyError);
+          } else if (legacyConfig && legacyConfig.length > 0 && legacyConfig[0].stripe_price_id) {
+            effectivePriceId = legacyConfig[0].stripe_price_id;
+          }
         }
       } catch (configError) {
         console.warn('⚠️ Failed to fetch server price configuration:', configError);

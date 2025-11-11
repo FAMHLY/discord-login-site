@@ -3,6 +3,7 @@ const axios = require('axios');
 require('dotenv').config();
 const path = require('path');
 const { createServerClient } = require('@supabase/ssr');
+const { createClient: createSupabaseClient } = require('@supabase/supabase-js');
 const cookieParser = require('cookie-parser');
 const crypto = require('crypto');
 const { 
@@ -17,6 +18,20 @@ const {
 const app = express();
 const BOT_API_TOKEN = process.env.BOT_API_TOKEN;
 const STRIPE_DEFAULT_PRICE_ID = process.env.STRIPE_DEFAULT_PRICE_ID;
+
+let supabaseServiceClient = null;
+try {
+  if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    supabaseServiceClient = createSupabaseClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+  } else {
+    console.warn('⚠️ Supabase service role credentials not configured. Some server settings features may be unavailable.');
+  }
+} catch (serviceClientError) {
+  console.error('❌ Failed to initialize Supabase service client:', serviceClientError);
+}
 
 // Discord REST API functions for serverless environment
 async function getDiscordGuilds() {
@@ -1651,11 +1666,11 @@ app.post('/api/stripe/create-checkout', async (req, res) => {
   try {
     const { serverId, priceId } = req.body;
     
-    if (!serverId || !priceId) {
-      return res.status(400).json({ error: 'Server ID and Price ID are required' });
+    if (!serverId) {
+      return res.status(400).json({ error: 'Server ID is required' });
     }
 
-    console.log(`Creating checkout session for server: ${serverId}, price: ${priceId}`);
+    console.log(`Creating checkout session for server: ${serverId}`);
 
     // Get user's email and Discord ID
     const email = user.email;
@@ -1683,6 +1698,46 @@ app.post('/api/stripe/create-checkout', async (req, res) => {
       return res.status(404).json({ error: 'Server not found or not owned by user' });
     }
 
+    // Resolve Stripe price ID
+    let effectivePriceId = priceId;
+
+    if (!effectivePriceId && supabaseServiceClient) {
+      const { data: serverSettings, error: settingsError } = await supabaseServiceClient
+        .from('server_settings')
+        .select('stripe_price_id')
+        .eq('discord_server_id', serverId)
+        .maybeSingle();
+
+      if (settingsError && settingsError.code !== 'PGRST116') {
+        console.warn('⚠️ Unable to load server settings during checkout:', settingsError);
+      } else if (serverSettings?.stripe_price_id) {
+        effectivePriceId = serverSettings.stripe_price_id;
+      }
+    }
+
+    if (!effectivePriceId && STRIPE_DEFAULT_PRICE_ID) {
+      effectivePriceId = STRIPE_DEFAULT_PRICE_ID;
+    }
+
+    if (!effectivePriceId) {
+      return res.status(400).json({ error: 'Stripe price ID not configured for this server.' });
+    }
+
+    // Persist the Stripe price for this server
+    if (supabaseServiceClient) {
+      const { error: upsertError } = await supabaseServiceClient
+        .from('server_settings')
+        .upsert({
+          discord_server_id: serverId,
+          stripe_price_id: effectivePriceId,
+          updated_at: new Date().toISOString()
+        });
+
+      if (upsertError) {
+        console.warn('⚠️ Failed to persist server settings:', upsertError);
+      }
+    }
+
     // Create checkout session
     const successUrl = `${req.protocol}://${req.get('host')}/dashboard.html?subscription=success`;
     const cancelUrl = `${req.protocol}://${req.get('host')}/dashboard.html?subscription=cancelled`;
@@ -1691,7 +1746,7 @@ app.post('/api/stripe/create-checkout', async (req, res) => {
       customerResult.customerId,
       serverId,
       server.server_name,
-      priceId,
+      effectivePriceId,
       successUrl,
       cancelUrl,
       discordUserId
