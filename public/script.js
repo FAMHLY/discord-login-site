@@ -404,9 +404,7 @@ function createServerCard(server) {
               `<button class="btn btn-cancel" data-action="cancel-subscription" data-server-id="${server.id}" data-subscription-id="${server.user_subscription.id}">
                 Cancel Subscription
               </button>` :
-              `<button class="btn btn-subscribe" data-action="subscribe" data-server-id="${server.id}">
-                Subscribe
-              </button>`
+              `<span class="action-note">Use the <code>/subscribe</code> command in Discord to join.</span>`
             }
             <button class="btn btn-danger" data-action="remove" data-server-id="${server.id}">
               Remove Server
@@ -594,9 +592,6 @@ function handleServerActionClick(e) {
     case 'copy-invite':
       copyInvite(serverId);
       break;
-    case 'subscribe':
-      handleSubscribe(button, serverId);
-      break;
     case 'cancel-subscription':
       const subscriptionId = button.dataset.subscriptionId;
       handleCancelSubscription(button, serverId, subscriptionId);
@@ -606,62 +601,6 @@ function handleServerActionClick(e) {
       break;
     default:
       console.log('Unknown action:', action);
-  }
-}
-
-
-async function handleSubscribe(button, serverId) {
-  console.log(`Subscribe button clicked for server: ${serverId}`);
-  
-  // Check if already subscribed
-  const isSubscribed = button.classList.contains('subscribed');
-  
-  if (isSubscribed) {
-    // Already subscribed - could show a message or do nothing
-    showMessage('You are already subscribed to this server!', 'info');
-    return;
-  }
-  
-  const priceId = 'price_1SIzTLFSRfDsx8GKL2BP9o3Q'; // Your Stripe price ID
-  
-  try {
-    // Show loading state
-    const originalText = button.textContent;
-    button.textContent = '⏳ Creating checkout...';
-    button.disabled = true;
-    
-    const response = await fetch('/api/stripe/create-checkout', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        serverId: serverId,
-        priceId: priceId
-      })
-    });
-
-    const result = await response.json();
-    
-    if (result.success) {
-      console.log('Checkout session created, redirecting...');
-      // Redirect to Stripe checkout
-      window.location.href = result.url;
-    } else {
-      console.error('Failed to create checkout session:', result.error);
-      showMessage(`Failed to create checkout session: ${result.error}`, 'error');
-      
-      // Reset button
-      button.textContent = originalText;
-      button.disabled = false;
-    }
-  } catch (error) {
-    console.error('Error creating checkout session:', error);
-    showMessage(`Error creating checkout session: ${error.message}`, 'error');
-    
-    // Reset button
-    button.textContent = originalText;
-    button.disabled = false;
   }
 }
 
@@ -770,17 +709,7 @@ function handleStripeReturn(status) {
   
   switch (status) {
     case 'success':
-      showMessage('🎉 Payment successful! You now have premium access to the Discord server. Your 🟢 premium role has been assigned!', 'success');
-      
-      // Update all subscribe buttons to show subscribed state
-      updateSubscribeButtons();
-      
-      // Refresh servers to show updated stats
-      setTimeout(() => {
-        if (typeof loadServers === 'function') {
-          loadServers();
-        }
-      }, 2000);
+      showMessage('🎉 Payment successful! You now have premium access to the Discord server. Use the Discord `/subscribe` command for any future purchases.', 'success');
       break;
       
     case 'cancelled':
@@ -788,18 +717,8 @@ function handleStripeReturn(status) {
       break;
       
     default:
-      showMessage('ℹ️ You returned from the payment process. Check your subscription status below.', 'info');
+      showMessage('ℹ️ You returned from the payment process. Use the Discord `/subscribe` command to manage membership.', 'info');
   }
-}
-
-function updateSubscribeButtons() {
-  // Find all subscribe buttons and update their state
-  const subscribeButtons = document.querySelectorAll('.btn-subscribe');
-  subscribeButtons.forEach(button => {
-    button.textContent = 'Subscribed';
-    button.classList.add('subscribed');
-    button.disabled = false;
-  });
 }
 
 function showMessage(message, type) {

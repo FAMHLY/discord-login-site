@@ -90,40 +90,12 @@
           display: flex;
           gap: 0.75rem;
           align-items: center;
+          flex-wrap: wrap;
         }
         
-        /* Subscribe button styles */
-        .btn-subscribe {
-          background: #00FF00;
-          color: #000;
-          border: none;
-          padding: 0.5rem 1rem;
-          border-radius: 4px;
-          font-weight: bold;
-          cursor: pointer;
-          transition: all 0.3s ease;
-          font-size: 0.9rem;
-        }
-        
-        .btn-subscribe:hover:not(:disabled) {
-          background: #00CC00;
-          transform: translateY(-1px);
-        }
-        
-        .btn-subscribe:disabled {
-          background: #666;
-          cursor: not-allowed;
-          transform: none;
-        }
-        
-        /* Subscribed state (blue) */
-        .btn-subscribe.subscribed {
-          background: #007BFF;
-          color: #fff;
-        }
-        
-        .btn-subscribe.subscribed:hover:not(:disabled) {
-          background: #0056b3;
+        .action-note {
+          font-size: 0.85rem;
+          opacity: 0.9;
         }
         
         /* Cancel subscription button styles */
