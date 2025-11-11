@@ -340,7 +340,6 @@ async function updateConversionRate(guildId) {
       .from('discord_servers')
       .update({ 
         conversion_rate: Math.round(conversionRate * 100) / 100,
-        paid_conversion_rate: 0.00, // Reset paid conversion rate for now (Stripe integration pending)
         updated_at: new Date().toISOString()
       })
       .eq('discord_server_id', guildId);

@@ -252,7 +252,6 @@ async function loadServers() {
               user_total_invite_clicks: server.user_total_invite_clicks,
               user_total_joins: server.user_total_joins,
               user_conversion_rate: server.user_conversion_rate,
-              user_paid_conversion_rate: server.user_paid_conversion_rate,
               user_monthly_revenue: server.user_monthly_revenue,
               user_subscription: userSubscription
             });
