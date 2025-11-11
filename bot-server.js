@@ -127,7 +127,7 @@ client.on('interactionCreate', async interaction => {
     }
 
     if (interaction.commandName === 'subscribe' || interaction.commandName === 'unsubscribe') {
-        await interaction.deferReply({ ephemeral: true });
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
         const linkResult = await requestMembershipLink(interaction.commandName, interaction);
 
         if (!linkResult.success) {
