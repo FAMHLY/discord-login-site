@@ -22,6 +22,31 @@ try {
 const PAID_ROLE_NAME = '🟢';
 const FREE_ROLE_NAME = '🔴';
 
+async function getMemberAffiliate(discordServerId, discordUserId) {
+  if (!supabase || !discordServerId || !discordUserId) {
+    return null;
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('member_affiliates')
+      .select('affiliate_id')
+      .eq('discord_server_id', discordServerId)
+      .eq('discord_user_id', discordUserId)
+      .maybeSingle();
+
+    if (error) {
+      console.warn('⚠️ Unable to load member affiliate link:', error);
+      return null;
+    }
+
+    return data?.affiliate_id || null;
+  } catch (fetchError) {
+    console.warn('⚠️ Failed to fetch member affiliate link:', fetchError);
+    return null;
+  }
+}
+
 /**
  * Create a Stripe Checkout Session for Discord server subscription
  */
@@ -285,6 +310,11 @@ async function handleSubscriptionCreated(subscription) {
       discordUserId = customer.metadata?.discord_user_id;
     }
 
+    let affiliateId = null;
+    if (serverId && discordUserId) {
+      affiliateId = await getMemberAffiliate(serverId, discordUserId);
+    }
+
     // Prepare subscription data with better error handling
     const subscriptionData = {
       stripe_subscription_id: subscription.id,
@@ -293,7 +323,8 @@ async function handleSubscriptionCreated(subscription) {
       discord_server_id: serverId,
       status: subscription.status,
       price_id: subscription.items?.data?.[0]?.price?.id,
-      metadata: subscription.metadata
+      metadata: subscription.metadata,
+      affiliate_id: affiliateId
     };
 
     // Handle period dates safely
@@ -367,6 +398,11 @@ async function handleSubscriptionUpdated(subscription) {
       }
     }
 
+    let affiliateId = null;
+    if (supabase && subscription.metadata?.discord_server_id && discordUserId) {
+      affiliateId = await getMemberAffiliate(subscription.metadata.discord_server_id, discordUserId);
+    }
+
     const updateData = {
       status: subscription.status,
       price_id: subscription.items?.data?.[0]?.price?.id,
@@ -376,6 +412,10 @@ async function handleSubscriptionUpdated(subscription) {
 
     if (discordUserId) {
       updateData.discord_user_id = discordUserId;
+    }
+
+    if (affiliateId) {
+      updateData.affiliate_id = affiliateId;
     }
 
     if (subscription.current_period_start) {

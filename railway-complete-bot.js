@@ -173,6 +173,21 @@ async function trackMemberLeave(member) {
     
     // Recalculate server join count (active members only)
     await updateServerJoinCount(member.guild.id);
+
+    const { error: memberLinkError } = await supabase
+      .from('member_affiliates')
+      .update({
+        left_at: new Date().toISOString()
+      })
+      .eq('discord_server_id', member.guild.id)
+      .eq('discord_user_id', member.user.id)
+      .is('left_at', null);
+
+    if (memberLinkError) {
+      console.error('Error marking member affiliate link as left:', memberLinkError);
+    } else {
+      console.log('✅ Updated member affiliate link to left status');
+    }
     
   } catch (error) {
     console.error('Error in trackMemberLeave:', error);
@@ -199,6 +214,8 @@ async function trackMemberJoin(member) {
       return;
     }
     
+    const joinTimestamp = new Date().toISOString();
+
     if (!pendingRecords || pendingRecords.length === 0) {
       console.log('No pending tracking records found - this might be an organic join');
       
@@ -211,14 +228,33 @@ async function trackMemberJoin(member) {
           affiliate_id: null,
           conversion_status: 'joined',
           user_discord_id: member.user.id,
-          join_timestamp: new Date().toISOString(),
-          click_timestamp: new Date().toISOString()
+          join_timestamp: joinTimestamp,
+          click_timestamp: joinTimestamp
         });
         
       if (createError) {
         console.error('Error creating organic join record:', createError);
       } else {
         console.log('✅ Created organic join tracking record');
+        const { error: memberLinkError } = await supabase
+          .from('member_affiliates')
+          .upsert({
+            discord_server_id: member.guild.id,
+            discord_user_id: member.user.id,
+            affiliate_id: null,
+            invite_code: 'ORGANIC',
+            joined_at: joinTimestamp,
+            left_at: null
+          }, {
+            onConflict: 'discord_server_id,discord_user_id'
+          });
+
+        if (memberLinkError) {
+          console.error('Error upserting member affiliate link (organic):', memberLinkError);
+        } else {
+          console.log('✅ Recorded member affiliate link (organic)');
+        }
+
         await updateServerJoinCount(member.guild.id);
       }
       return;
@@ -237,7 +273,7 @@ async function trackMemberJoin(member) {
       .update({
         conversion_status: 'joined',
         user_discord_id: member.user.id,
-        join_timestamp: new Date().toISOString(),
+        join_timestamp: joinTimestamp,
         updated_at: new Date().toISOString()
       })
       .eq('id', mostRecentClick.id);
@@ -248,6 +284,26 @@ async function trackMemberJoin(member) {
     }
     
     console.log('✅ Updated tracking record to joined status');
+
+    const { error: memberLinkError } = await supabase
+      .from('member_affiliates')
+      .upsert({
+        discord_server_id: member.guild.id,
+        discord_user_id: member.user.id,
+        affiliate_id: mostRecentClick.affiliate_id,
+        invite_code: mostRecentClick.invite_code,
+        joined_at: joinTimestamp,
+        left_at: null
+      }, {
+        onConflict: 'discord_server_id,discord_user_id'
+      });
+
+    if (memberLinkError) {
+      console.error('Error upserting member affiliate link:', memberLinkError);
+    } else {
+      console.log('✅ Recorded member affiliate link');
+    }
+
     await updateServerJoinCount(member.guild.id);
     
   } catch (error) {
