@@ -1002,6 +1002,8 @@ app.post('/api/servers/:serverId/configure', async (req, res) => {
 
     let serverResult;
     let error;
+    let ownerDiscordId = user.user_metadata?.provider_id || null;
+
     if (existingServer) {
       // Update existing server record for this user
       console.log('Updating existing server record for user');
@@ -1012,7 +1014,7 @@ app.post('/api/servers/:serverId/configure', async (req, res) => {
           server_icon: serverIconUrl,
           user_role: userRole,
           invite_code: inviteCode,
-          owner_discord_id: user.user_metadata?.provider_id,
+          owner_discord_id: ownerDiscordId,
           updated_at: new Date().toISOString()
         })
         .eq('owner_id', user.id)
@@ -1033,7 +1035,7 @@ app.post('/api/servers/:serverId/configure', async (req, res) => {
           server_icon: serverIconUrl,
           user_role: userRole,
           invite_code: inviteCode,
-          owner_discord_id: user.user_metadata?.provider_id,
+          owner_discord_id: ownerDiscordId,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         })
@@ -1050,6 +1052,28 @@ app.post('/api/servers/:serverId/configure', async (req, res) => {
 
     console.log('Server configured successfully in database');
     console.log('ServerResult:', serverResult);
+
+    // Refresh owner-specific stats so dashboard shows accurate conversion metrics
+    try {
+      const statsClient = supabaseServiceClient || supabase;
+      if (ownerDiscordId) {
+        const { error: statsError } = await statsClient
+          .rpc('update_user_server_stats', {
+            p_discord_server_id: serverId,
+            p_owner_discord_id: ownerDiscordId
+          });
+
+        if (statsError) {
+          console.warn('⚠️ Failed to update user server stats after configure:', statsError);
+        } else {
+          console.log('✅ User-specific stats refreshed for owner:', ownerDiscordId);
+        }
+      } else {
+        console.log('⚠️ No owner Discord ID available; skipping stats refresh.');
+      }
+    } catch (statsException) {
+      console.warn('⚠️ Exception while updating user stats after configure:', statsException);
+    }
     
     // Restore affiliate tracking data if it exists
     if (existingTracking && existingTracking.length > 0) {
