@@ -1,3 +1,5 @@
+let currentUser = null;
+
 document.addEventListener('DOMContentLoaded', () => {
   console.log('=== Frontend: Loading user data ===');
   
@@ -48,6 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return res.json();
     })
     .then(user => {
+      currentUser = user;
       console.log('Received user data:', user);
       console.log('User object keys:', user ? Object.keys(user) : 'null');
       console.log('User username:', user?.username);
@@ -433,6 +436,8 @@ async function configureServer(serverId, serverName) {
     const result = await response.json();
     console.log('Server configured successfully:', result);
     
+    await refreshServerStats(serverId);
+
     // Show success message
     showMessage('Server configured successfully!', 'success');
     
@@ -466,6 +471,37 @@ function copyInvite(serverId) {
     console.error('Failed to copy invite link:', err);
     showMessage('Failed to copy invite link.', 'error');
   });
+}
+
+
+async function refreshServerStats(serverId) {
+  if (!serverId) return;
+
+  try {
+    const payload = {};
+    if (currentUser?.discord_id) {
+      payload.ownerId = currentUser.discord_id;
+    }
+
+    const response = await fetch(`/api/servers/${serverId}/refresh-stats`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      console.warn('refreshServerStats failed:', response.status, await response.text());
+    } else {
+      const result = await response.json();
+      if (!result.success) {
+        console.warn('refreshServerStats returned error:', result);
+      }
+    }
+  } catch (error) {
+    console.error('Error refreshing server stats:', error);
+  }
 }
 
 function addManualServer(event) {

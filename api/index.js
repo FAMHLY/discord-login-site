@@ -1355,20 +1355,52 @@ app.post('/api/servers/:serverId/invite', async (req, res) => {
 app.post('/api/servers/:serverId/refresh-stats', async (req, res) => {
   console.log('=== /api/servers/:serverId/refresh-stats endpoint called ===');
 
-  if (!BOT_API_TOKEN) {
-    return res.status(500).json({ success: false, error: 'BOT_API_TOKEN is not configured' });
-  }
-
-  const token = req.headers['x-bot-token'];
-  if (!token || token !== BOT_API_TOKEN) {
-    return res.status(401).json({ success: false, error: 'Unauthorized' });
-  }
-
   const { serverId } = req.params;
-  const { ownerId } = req.body || {};
+  let { ownerId } = req.body || {};
 
-  if (!serverId || !ownerId) {
-    return res.status(400).json({ success: false, error: 'serverId and ownerId are required' });
+  if (!serverId) {
+    return res.status(400).json({ success: false, error: 'serverId is required' });
+  }
+
+  // Try to authenticate via Supabase session first
+  const supabase = createServerClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_ANON_KEY,
+    {
+      cookies: {
+        get: (name) => req.cookies[name],
+        set: (name, value, options) => res.cookie(name, value, options),
+        remove: (name, options) => res.clearCookie(name, options),
+      },
+    }
+  );
+
+  let authorized = false;
+
+  try {
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+    if (!userError && user) {
+      authorized = true;
+      if (!ownerId) {
+        ownerId = user.user_metadata?.provider_id || null;
+      }
+    }
+  } catch (sessionError) {
+    console.warn('⚠️ Unable to load Supabase user session for refresh-stats:', sessionError);
+  }
+
+  // Fallback to bot token for server-to-server usage
+  if (!authorized) {
+    const token = req.headers['x-bot-token'];
+    if (!token || token !== BOT_API_TOKEN) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+    authorized = true;
+  }
+
+  if (!ownerId) {
+    return res.status(400).json({ success: false, error: 'ownerId could not be determined' });
   }
 
   if (!supabaseServiceClient) {
