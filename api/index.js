@@ -1352,6 +1352,48 @@ app.post('/api/servers/:serverId/invite', async (req, res) => {
   }
 });
 
+app.post('/api/servers/:serverId/refresh-stats', async (req, res) => {
+  console.log('=== /api/servers/:serverId/refresh-stats endpoint called ===');
+
+  if (!BOT_API_TOKEN) {
+    return res.status(500).json({ success: false, error: 'BOT_API_TOKEN is not configured' });
+  }
+
+  const token = req.headers['x-bot-token'];
+  if (!token || token !== BOT_API_TOKEN) {
+    return res.status(401).json({ success: false, error: 'Unauthorized' });
+  }
+
+  const { serverId } = req.params;
+  const { ownerId } = req.body || {};
+
+  if (!serverId || !ownerId) {
+    return res.status(400).json({ success: false, error: 'serverId and ownerId are required' });
+  }
+
+  if (!supabaseServiceClient) {
+    return res.status(500).json({ success: false, error: 'Service role client not available' });
+  }
+
+  try {
+    const { error: statsError } = await supabaseServiceClient.rpc('update_user_server_stats', {
+      p_discord_server_id: serverId,
+      p_owner_discord_id: ownerId
+    });
+
+    if (statsError) {
+      console.error('❌ Failed to refresh user stats:', statsError);
+      return res.status(500).json({ success: false, error: statsError.message });
+    }
+
+    console.log(`✅ Refreshed stats for owner ${ownerId} in server ${serverId}`);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Error refreshing stats:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Health check endpoint for Discord bot (uses shared utility)
 app.get('/api/bot/health', async (req, res) => {
   try {
