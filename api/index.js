@@ -1070,6 +1070,11 @@ app.post('/api/servers/:serverId/configure', async (req, res) => {
             p_discord_server_id: serverId,
             p_owner_discord_id: ownerDiscordId
           });
+        const { error: statsError } = await statsClient
+          .rpc('update_user_server_stats', {
+            p_discord_server_id: serverId,
+            p_owner_discord_id: ownerDiscordId
+          });
 
         if (statsError) {
           console.warn('⚠️ Failed to update user server stats after configure:', statsError);
