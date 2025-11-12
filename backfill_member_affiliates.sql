@@ -28,3 +28,12 @@ SET
   left_at = EXCLUDED.left_at,
   updated_at = NOW();
 
+-- Backfill subscriptions with affiliate links where possible
+UPDATE subscriptions s
+SET affiliate_id = ma.affiliate_id
+FROM member_affiliates ma
+WHERE ma.discord_server_id = s.discord_server_id
+  AND ma.discord_user_id = s.discord_user_id
+  AND s.affiliate_id IS NULL
+  AND ma.affiliate_id IS NOT NULL;
+
