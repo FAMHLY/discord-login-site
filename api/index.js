@@ -1023,6 +1023,10 @@ app.post('/api/servers/:serverId/configure', async (req, res) => {
       
       serverResult = data;
       error = updateError;
+
+      if (!ownerDiscordId && serverResult && serverResult.length > 0) {
+        ownerDiscordId = serverResult[0]?.owner_discord_id || ownerDiscordId;
+      }
     } else {
       // Create new server record for this user
       console.log('Creating new server record for user');
@@ -1043,6 +1047,10 @@ app.post('/api/servers/:serverId/configure', async (req, res) => {
       
       serverResult = data;
       error = insertError;
+
+      if (!ownerDiscordId && serverResult && serverResult.length > 0) {
+        ownerDiscordId = serverResult[0]?.owner_discord_id || ownerDiscordId;
+      }
     }
 
     if (error) {
