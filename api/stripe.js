@@ -198,9 +198,10 @@ async function createMemberCheckoutSession({
 
     if (existingCustomerId) {
       sessionParams.customer = existingCustomerId;
-    } else {
-      sessionParams.customer_creation = 'always';
     }
+    // Note: For subscription mode, Stripe automatically creates a customer
+    // if none is provided. The customer_creation parameter is only valid
+    // for payment mode, not subscription mode.
 
     const session = await stripe.checkout.sessions.create(sessionParams);
     console.log(`✅ Member checkout session created: ${session.id}`);
