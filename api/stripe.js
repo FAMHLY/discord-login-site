@@ -202,6 +202,8 @@ async function createMemberCheckoutSession({
     // Note: For subscription mode, Stripe automatically creates a customer
     // if none is provided. The customer_creation parameter is only valid
     // for payment mode, not subscription mode.
+    // The customer metadata will be updated in the webhook handler after
+    // the subscription is created, using the Discord user ID from subscription metadata.
 
     const session = await stripe.checkout.sessions.create(sessionParams);
     console.log(`✅ Member checkout session created: ${session.id}`);
@@ -297,7 +299,7 @@ async function handleSubscriptionCreated(subscription) {
       return { success: true, subscriptionId: subscription.id, warning: 'Database not available' };
     }
 
-    // Get Discord user ID from customer metadata
+    // Get Discord user ID from customer metadata or subscription metadata
     let customer;
     let discordUserId;
     
@@ -309,6 +311,26 @@ async function handleSubscriptionCreated(subscription) {
       // Customer is already expanded as an object
       customer = customerId;
       discordUserId = customer.metadata?.discord_user_id;
+    }
+    
+    // Fallback to subscription metadata if customer metadata doesn't have it
+    if (!discordUserId && subscription.metadata?.discord_user_id) {
+      discordUserId = subscription.metadata.discord_user_id;
+      // Update customer metadata so we have it for future lookups
+      try {
+        const customerIdString = typeof customerId === 'string' ? customerId : customerId.id;
+        await stripe.customers.update(customerIdString, {
+          metadata: {
+            ...(customer.metadata || {}),
+            discord_user_id: discordUserId,
+            discord_username: subscription.metadata.discord_username || 'Unknown'
+          }
+        });
+        console.log(`✅ Updated customer metadata with Discord user ID: ${discordUserId}`);
+      } catch (updateError) {
+        console.error('⚠️ Failed to update customer metadata:', updateError);
+        // Continue anyway - we have the Discord user ID from subscription metadata
+      }
     }
 
     let affiliateId = null;
