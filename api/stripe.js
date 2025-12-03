@@ -231,30 +231,68 @@ async function createMemberPortalSession({
   returnUrl
 }) {
   try {
-    if (!supabase) {
-      return { success: false, error: 'Database not configured' };
+    let customerId = null;
+
+    // First, try to find customer in database
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('subscriptions')
+        .select('stripe_customer_id')
+        .eq('discord_user_id', discordUserId)
+        .eq('discord_server_id', serverId)
+        .not('stripe_customer_id', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (error) {
+        console.error('Error fetching subscription for portal session:', error);
+      } else if (data && data.length > 0 && data[0].stripe_customer_id) {
+        customerId = data[0].stripe_customer_id;
+      }
     }
 
-    const { data, error } = await supabase
-      .from('subscriptions')
-      .select('stripe_customer_id')
-      .eq('discord_user_id', discordUserId)
-      .eq('discord_server_id', serverId)
-      .not('stripe_customer_id', 'is', null)
-      .order('created_at', { ascending: false })
-      .limit(1);
+    // If not found in database, try to find customer in Stripe by searching subscriptions
+    if (!customerId) {
+      console.log(`Customer not found in database, searching Stripe subscriptions for server: ${serverId}`);
+      try {
+        // Search for active subscriptions for this server
+        // Note: Stripe doesn't support filtering by metadata in list, so we search recent subscriptions
+        const subscriptions = await stripe.subscriptions.list({
+          status: 'all',
+          limit: 100
+        });
 
-    if (error) {
-      console.error('Error fetching subscription for portal session:', error);
-      return { success: false, error: error.message };
+        // Filter subscriptions by server ID in metadata and check customer metadata
+        for (const sub of subscriptions.data) {
+          if (sub.metadata?.discord_server_id === serverId) {
+            // Get the customer to check Discord user ID
+            let customer;
+            if (typeof sub.customer === 'string') {
+              customer = await stripe.customers.retrieve(sub.customer);
+            } else {
+              customer = sub.customer;
+            }
+
+            // Check if customer metadata matches, or if subscription metadata has the user ID
+            const subDiscordUserId = customer.metadata?.discord_user_id || sub.metadata?.discord_user_id;
+            if (subDiscordUserId === discordUserId) {
+              customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
+              console.log(`✅ Found customer in Stripe subscription: ${customerId}`);
+              break;
+            }
+          }
+        }
+      } catch (stripeError) {
+        console.error('Error searching Stripe for customer:', stripeError);
+      }
     }
 
-    if (!data || data.length === 0 || !data[0].stripe_customer_id) {
-      return { success: false, error: 'No Stripe customer found for this user.' };
+    if (!customerId) {
+      return { success: false, error: 'No active subscription found. Please subscribe first to manage your membership.' };
     }
 
     const session = await stripe.billingPortal.sessions.create({
-      customer: data[0].stripe_customer_id,
+      customer: customerId,
       return_url:
         returnUrl ||
         process.env.MEMBER_PORTAL_RETURN_URL ||
