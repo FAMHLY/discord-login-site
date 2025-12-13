@@ -123,6 +123,77 @@ const activeRoleSelections = new Map();
 
 client.on('interactionCreate', async interaction => {
     try {
+        // Handle SelectMenu interactions (role selection)
+        if (interaction.isStringSelectMenu()) {
+            const customId = interaction.customId;
+            
+            // Check if this is a role selection menu
+            if (customId.startsWith('role_selection_')) {
+                const parts = customId.split('_');
+                if (parts.length >= 5) {
+                    const action = parts[2]; // 'subscribe' or 'unsubscribe'
+                    const userId = parts[3];
+                    const serverId = parts[4];
+                    
+                    // Verify this interaction belongs to the user
+                    if (interaction.user.id !== userId) {
+                        await interaction.reply({
+                            content: '❌ This menu is not for you.',
+                            ephemeral: true
+                        });
+                        return;
+                    }
+                    
+                    const selectedValue = interaction.values[0]; // Get the selected role
+                    const [stripePriceId, roleName] = selectedValue.split(':');
+                    
+                    console.log(`✅ Role selected: ${roleName} (${action}) by ${interaction.user.tag}`);
+                    console.log(`   Price ID: ${stripePriceId}`);
+                    
+                    // Acknowledge the selection
+                    await interaction.deferUpdate();
+                    
+                    // Get the subscription link
+                    const linkResult = await requestMembershipLink(
+                        action,
+                        {
+                            user: interaction.user,
+                            guild: interaction.guild
+                        },
+                        stripePriceId,
+                        roleName
+                    );
+
+                    if (!linkResult.success) {
+                        await interaction.followUp({
+                            content: linkResult.content,
+                            ephemeral: true
+                        });
+                        return;
+                    }
+
+                    // Try to DM the user
+                    let dmSent = false;
+                    try {
+                        await interaction.user.send(linkResult.content);
+                        dmSent = true;
+                        await interaction.followUp({
+                            content: '📬 Check your DMs for the subscription link!',
+                            ephemeral: true
+                        });
+                    } catch (dmError) {
+                        console.warn('⚠️ Unable to DM user:', dmError.message);
+                        await interaction.followUp({
+                            content: `❕ I couldn't DM you, so here's the link instead:\n${linkResult.content}`,
+                            ephemeral: true
+                        });
+                    }
+                }
+            }
+            return;
+        }
+        
+        // Handle slash command interactions
         if (!interaction.isChatInputCommand()) {
             return;
         }
@@ -205,37 +276,32 @@ client.on('interactionCreate', async interaction => {
                 }
             }
 
-            // Create role list message
-            const roleList = availableRoles.map((role, index) => `${index + 1}. **${role.role_name}**`).join('\n');
+            // Create a SelectMenu (dropdown) with available roles
+            const selectMenu = new StringSelectMenuBuilder()
+                .setCustomId(`role_selection_${action}_${userId}_${serverId}`)
+                .setPlaceholder(`Select a role to ${action}...`)
+                .addOptions(
+                    availableRoles.map(role => ({
+                        label: role.role_name,
+                        description: `${action === 'subscribe' ? 'Subscribe to' : 'Unsubscribe from'} ${role.role_name}`,
+                        value: `${role.stripe_price_id}:${role.role_name}`
+                    }))
+                );
+
+            const row = new ActionRowBuilder().addComponents(selectMenu);
+
             const promptMessage = action === 'subscribe'
-                ? `📋 **Which role would you like to subscribe to?**\n\n${roleList}\n\nPlease reply with the **number** or **name** of the role you want to ${action}.`
-                : `📋 **Which role would you like to unsubscribe from?**\n\n${roleList}\n\nPlease reply with the **number** or **name** of the role you want to ${action}.`;
+                ? `📋 **Select which role you'd like to subscribe to:**`
+                : `📋 **Select which role you'd like to unsubscribe from:**`;
 
             await interaction.reply({
                 content: promptMessage,
+                components: [row],
                 ephemeral: true
             });
 
-            // Store the selection context
-            const selectionKey = `${userId}-${serverId}`;
-            activeRoleSelections.set(selectionKey, {
-                action,
-                serverId,
-                userId,
-                availableRoles,
-                timestamp: Date.now()
-            });
-
-            console.log(`💾 Stored role selection for ${userId} in server ${serverId}`);
+            console.log(`✅ Sent role selection menu to ${userId} in server ${serverId}`);
             console.log(`📋 Available roles:`, availableRoles.map(r => r.role_name));
-
-            // Set timeout to clean up after 60 seconds
-            setTimeout(() => {
-                if (activeRoleSelections.has(selectionKey)) {
-                    console.log(`⏰ Cleaning up expired role selection for ${selectionKey}`);
-                    activeRoleSelections.delete(selectionKey);
-                }
-            }, 60000);
         }
     } catch (error) {
         console.error('❌ Error handling interaction:', error);
