@@ -1951,6 +1951,7 @@ app.post('/api/stripe/member/checkout', async (req, res) => {
       serverId,
       serverName,
       priceId,
+      roleName,
       successUrl,
       cancelUrl
     } = req.body || {};
@@ -1962,24 +1963,74 @@ app.post('/api/stripe/member/checkout', async (req, res) => {
       });
     }
 
-    const checkoutResult = await createMemberCheckoutSession({
-      discordUserId,
-      discordUsername,
-      serverId,
-      serverName,
-      priceId: priceId || STRIPE_DEFAULT_PRICE_ID,
-      successUrl,
-      cancelUrl
-    });
+    // If priceId is provided, validate it exists in server_roles for this server
+    if (priceId && supabaseServiceClient) {
+      const { data: serverRole, error: roleError } = await supabaseServiceClient
+        .from('server_roles')
+        .select('role_name')
+        .eq('discord_server_id', serverId)
+        .eq('stripe_price_id', priceId)
+        .maybeSingle();
 
-    if (!checkoutResult.success) {
-      return res.status(500).json(checkoutResult);
+      if (roleError) {
+        console.error('Error validating priceId:', roleError);
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid price ID for this server'
+        });
+      }
+
+      if (!serverRole) {
+        return res.status(400).json({
+          success: false,
+          error: 'The selected role is not available for this server'
+        });
+      }
+
+      // Use the role name from the database if not provided
+      const effectiveRoleName = roleName || serverRole.role_name;
+
+      const checkoutResult = await createMemberCheckoutSession({
+        discordUserId,
+        discordUsername,
+        serverId,
+        serverName,
+        priceId,
+        roleName: effectiveRoleName,
+        successUrl,
+        cancelUrl
+      });
+
+      if (!checkoutResult.success) {
+        return res.status(500).json(checkoutResult);
+      }
+
+      return res.json({
+        success: true,
+        url: checkoutResult.url
+      });
+    } else {
+      // No priceId provided, use default flow (backwards compatibility)
+      const checkoutResult = await createMemberCheckoutSession({
+        discordUserId,
+        discordUsername,
+        serverId,
+        serverName,
+        priceId: priceId || STRIPE_DEFAULT_PRICE_ID,
+        roleName,
+        successUrl,
+        cancelUrl
+      });
+
+      if (!checkoutResult.success) {
+        return res.status(500).json(checkoutResult);
+      }
+
+      return res.json({
+        success: true,
+        url: checkoutResult.url
+      });
     }
-
-    return res.json({
-      success: true,
-      url: checkoutResult.url
-    });
   } catch (error) {
     console.error('Error creating member checkout session:', error);
     return res.status(500).json({ success: false, error: error.message });

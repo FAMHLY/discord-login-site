@@ -115,55 +115,228 @@ client.on('guildCreate', async guild => {
     }
 });
 
+// Store active role selection conversations
+const activeRoleSelections = new Map();
+
 client.on('interactionCreate', async interaction => {
     try {
         if (!interaction.isChatInputCommand()) {
             return;
         }
 
-    if (!interaction.channel || interaction.channel.name !== MEMBERSHIP_CHANNEL_NAME) {
-        await interaction.reply({
-            content: `⚠️ Please use the #${MEMBERSHIP_CHANNEL_NAME} channel for this command.`,
-            ephemeral: true
-        });
-        return;
-    }
-
-    if (interaction.commandName === 'subscribe' || interaction.commandName === 'unsubscribe') {
-        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-        const linkResult = await requestMembershipLink(interaction.commandName, interaction);
-
-        if (!linkResult.success) {
-            await interaction.editReply(linkResult.content);
+        if (!interaction.channel || interaction.channel.name !== MEMBERSHIP_CHANNEL_NAME) {
+            await interaction.reply({
+                content: `⚠️ Please use the #${MEMBERSHIP_CHANNEL_NAME} channel for this command.`,
+                ephemeral: true
+            });
             return;
         }
 
-        let dmSent = false;
-        try {
-            await interaction.user.send(linkResult.content);
-            dmSent = true;
-        } catch (dmError) {
-            console.warn('⚠️ Unable to DM user:', dmError.message);
-        }
+        if (interaction.commandName === 'subscribe' || interaction.commandName === 'unsubscribe') {
+            const action = interaction.commandName;
+            const serverId = interaction.guild.id;
+            const userId = interaction.user.id;
 
-        if (dmSent) {
-            await interaction.editReply('📬 Check your DMs for the link.');
-        } else {
-            await interaction.editReply(`❕ I couldn't DM you, so here's the link instead:\n${linkResult.content}`);
-        }
+            // Get available roles for this server
+            if (!supabase) {
+                await interaction.reply({
+                    content: '❌ Subscription service is not available. Please contact an administrator.',
+                    ephemeral: true
+                });
+                return;
+            }
+
+            const { data: serverRoles, error: rolesError } = await supabase
+                .from('server_roles')
+                .select('role_name, stripe_price_id')
+                .eq('discord_server_id', serverId);
+
+            if (rolesError) {
+                console.error('Error fetching server roles:', rolesError);
+                await interaction.reply({
+                    content: '❌ Failed to fetch available roles. Please try again later.',
+                    ephemeral: true
+                });
+                return;
+            }
+
+            if (!serverRoles || serverRoles.length === 0) {
+                await interaction.reply({
+                    content: `❌ No subscription roles are configured for this server. ${action === 'subscribe' ? 'Contact a server administrator to set up roles.' : 'You have no active subscriptions to manage.'}`,
+                    ephemeral: true
+                });
+                return;
+            }
+
+            // If unsubscribe, filter to only roles they're subscribed to
+            let availableRoles = serverRoles;
+            if (action === 'unsubscribe') {
+                const { data: userSubscriptions, error: subError } = await supabase
+                    .from('subscriptions')
+                    .select('role_name')
+                    .eq('discord_server_id', serverId)
+                    .eq('discord_user_id', userId)
+                    .eq('status', 'active');
+
+                if (subError) {
+                    console.error('Error fetching user subscriptions:', subError);
+                    await interaction.reply({
+                        content: '❌ Failed to fetch your subscriptions. Please try again later.',
+                        ephemeral: true
+                    });
+                    return;
+                }
+
+                const subscribedRoleNames = new Set((userSubscriptions || [])
+                    .map(sub => sub.role_name)
+                    .filter(Boolean));
+
+                availableRoles = serverRoles.filter(role => subscribedRoleNames.has(role.role_name));
+
+                if (availableRoles.length === 0) {
+                    await interaction.reply({
+                        content: '❌ You have no active subscriptions to manage.',
+                        ephemeral: true
+                    });
+                    return;
+                }
+            }
+
+            // Create role list message
+            const roleList = availableRoles.map((role, index) => `${index + 1}. **${role.role_name}**`).join('\n');
+            const promptMessage = action === 'subscribe'
+                ? `📋 **Which role would you like to subscribe to?**\n\n${roleList}\n\nPlease reply with the **number** or **name** of the role you want to ${action}.`
+                : `📋 **Which role would you like to unsubscribe from?**\n\n${roleList}\n\nPlease reply with the **number** or **name** of the role you want to ${action}.`;
+
+            await interaction.reply({
+                content: promptMessage,
+                ephemeral: true
+            });
+
+            // Store the selection context
+            const selectionKey = `${userId}-${serverId}`;
+            activeRoleSelections.set(selectionKey, {
+                action,
+                serverId,
+                userId,
+                availableRoles,
+                interaction: interaction,
+                timestamp: Date.now()
+            });
+
+            // Set timeout to clean up after 60 seconds
+            setTimeout(() => {
+                if (activeRoleSelections.has(selectionKey)) {
+                    activeRoleSelections.delete(selectionKey);
+                }
+            }, 60000);
         }
     } catch (error) {
         console.error('❌ Error handling interaction:', error);
         if (interaction.deferred || interaction.replied) {
             await interaction.editReply({
                 content: '❌ Something went wrong while processing that command. Please try again later.'
-            });
+            }).catch(() => {});
         } else {
             await interaction.reply({
                 content: '❌ Something went wrong while processing that command. Please try again later.',
                 ephemeral: true
+            }).catch(() => {});
+        }
+    }
+});
+
+// Handle message replies for role selection
+client.on('messageCreate', async message => {
+    try {
+        // Ignore bot messages
+        if (message.author.bot) return;
+
+        // Only handle messages in membership channel
+        if (!message.channel || message.channel.name !== MEMBERSHIP_CHANNEL_NAME) return;
+
+        const userId = message.author.id;
+        const serverId = message.guild.id;
+        const selectionKey = `${userId}-${serverId}`;
+        const selection = activeRoleSelections.get(selectionKey);
+
+        if (!selection) return; // No active selection for this user
+
+        // Check if message is too old (more than 60 seconds)
+        if (Date.now() - selection.timestamp > 60000) {
+            activeRoleSelections.delete(selectionKey);
+            return;
+        }
+
+        const userResponse = message.content.trim();
+        let selectedRole = null;
+
+        // Try to match by number
+        const numberMatch = parseInt(userResponse);
+        if (!isNaN(numberMatch) && numberMatch >= 1 && numberMatch <= selection.availableRoles.length) {
+            selectedRole = selection.availableRoles[numberMatch - 1];
+        } else {
+            // Try to match by role name (case insensitive)
+            selectedRole = selection.availableRoles.find(role =>
+                role.role_name.toLowerCase() === userResponse.toLowerCase()
+            );
+        }
+
+        if (!selectedRole) {
+            await message.reply({
+                content: `❌ I couldn't find that role. Please reply with the **number** or **name** from the list.`
+            });
+            return;
+        }
+
+        // Remove from active selections
+        activeRoleSelections.delete(selectionKey);
+
+        // Delete the user's selection message
+        try {
+            await message.delete();
+        } catch (deleteError) {
+            console.warn('Could not delete user message:', deleteError);
+        }
+
+        // Get the subscription link
+        const linkResult = await requestMembershipLink(
+            selection.action,
+            {
+                user: message.author,
+                guild: message.guild
+            },
+            selectedRole.stripe_price_id,
+            selectedRole.role_name
+        );
+
+        if (!linkResult.success) {
+            await message.channel.send({
+                content: `${message.author} ${linkResult.content}`,
+                allowedMentions: { users: [userId] }
+            });
+            return;
+        }
+
+        // Try to DM the user
+        let dmSent = false;
+        try {
+            await message.author.send(linkResult.content);
+            dmSent = true;
+            await message.channel.send({
+                content: `${message.author} 📬 Check your DMs for the subscription link!`,
+                allowedMentions: { users: [userId] }
+            });
+        } catch (dmError) {
+            console.warn('⚠️ Unable to DM user:', dmError.message);
+            await message.channel.send({
+                content: `${message.author} ❕ I couldn't DM you, so here's the link instead:\n${linkResult.content}`,
+                allowedMentions: { users: [userId] }
             });
         }
+
+    } catch (error) {
+        console.error('❌ Error handling role selection message:', error);
     }
 });
 
@@ -446,13 +619,17 @@ ${newSubscriptions > 0 || cancelledSubscriptions > 0 ? `\n**Net Change Today:** 
 /**
  * Generate membership links via API
  */
-async function requestMembershipLink(action, interaction) {
+async function requestMembershipLink(action, interactionOrUser, priceId = null, roleName = null) {
     if (!BOT_API_TOKEN) {
         return {
             success: false,
             content: '❌ Membership service is not configured. Please contact an administrator.'
         };
     }
+
+    // Handle both interaction objects and user objects
+    const user = interactionOrUser.user || interactionOrUser;
+    const guild = interactionOrUser.guild;
 
     const endpoint =
         action === 'subscribe'
@@ -462,15 +639,22 @@ async function requestMembershipLink(action, interaction) {
     const url = `${MEMBER_API_BASE_URL}${endpoint}`;
 
     try {
+        const requestBody = {
+            discordUserId: user.id,
+            discordUsername: user.tag,
+            serverId: guild.id,
+            serverName: guild.name
+        };
+
+        // For subscribe, include the price ID and role name
+        if (action === 'subscribe' && priceId) {
+            requestBody.priceId = priceId;
+            requestBody.roleName = roleName;
+        }
+
         const response = await axios.post(
             url,
-            {
-                discordUserId: interaction.user.id,
-                discordUsername: interaction.user.tag,
-                serverId: interaction.guild.id,
-                serverName: interaction.guild.name,
-                priceId: STRIPE_DEFAULT_PRICE_ID
-            },
+            requestBody,
             {
                 headers: {
                     'Content-Type': 'application/json',
@@ -489,9 +673,10 @@ async function requestMembershipLink(action, interaction) {
         }
 
         if (action === 'subscribe') {
+            const roleText = roleName ? ` for **${roleName}**` : '';
             return {
                 success: true,
-                content: `🔗 Subscribe here: ${response.data.url}`
+                content: `🔗 Subscribe${roleText} here: ${response.data.url}`
             };
         }
 

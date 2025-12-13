@@ -18,9 +18,8 @@ try {
   console.error('Failed to initialize Supabase client:', error);
 }
 
-// Standardized role names
-const PAID_ROLE_NAME = '🟢';
-const FREE_ROLE_NAME = '🔴';
+// Universal free role name (no color)
+const FREE_ROLE_NAME = 'visitor';
 
 async function getMemberAffiliate(discordServerId, discordUserId) {
   if (!supabase || !discordServerId || !discordUserId) {
@@ -105,6 +104,7 @@ async function createMemberCheckoutSession({
   serverId,
   serverName,
   priceId,
+  roleName,
   successUrl,
   cancelUrl
 }) {
@@ -171,6 +171,11 @@ async function createMemberCheckoutSession({
       discord_server_id: serverId,
       discord_server_name: serverName
     };
+
+    // Add role name to metadata if provided
+    if (roleName) {
+      metadata.role_name = roleName;
+    }
 
     const sessionParams = {
       mode: 'subscription',
@@ -376,6 +381,29 @@ async function handleSubscriptionCreated(subscription) {
       affiliateId = await getMemberAffiliate(serverId, discordUserId);
     }
 
+    // Look up role_name - first from metadata (from checkout), then from server_roles table
+    let roleName = subscription.metadata?.role_name || null;
+    const priceId = subscription.items?.data?.[0]?.price?.id;
+    
+    // If not in metadata, look it up from server_roles table
+    if (!roleName && supabase && serverId && priceId) {
+      const { data: serverRole, error: roleError } = await supabase
+        .from('server_roles')
+        .select('role_name')
+        .eq('discord_server_id', serverId)
+        .eq('stripe_price_id', priceId)
+        .maybeSingle();
+      
+      if (roleError) {
+        console.warn('⚠️ Error looking up role for price:', roleError);
+      } else if (serverRole) {
+        roleName = serverRole.role_name;
+        console.log(`✅ Found role ${roleName} for price ${priceId} from server_roles table`);
+      }
+    } else if (roleName) {
+      console.log(`✅ Using role ${roleName} from subscription metadata`);
+    }
+
     // Prepare subscription data with better error handling
     const subscriptionData = {
       stripe_subscription_id: subscription.id,
@@ -383,7 +411,8 @@ async function handleSubscriptionCreated(subscription) {
       discord_user_id: discordUserId,
       discord_server_id: serverId,
       status: subscription.status,
-      price_id: subscription.items?.data?.[0]?.price?.id,
+      price_id: priceId,
+      role_name: roleName,
       metadata: subscription.metadata,
       affiliate_id: affiliateId
     };
@@ -464,9 +493,31 @@ async function handleSubscriptionUpdated(subscription) {
       affiliateId = await getMemberAffiliate(subscription.metadata.discord_server_id, discordUserId);
     }
 
+    // Look up role_name - first from metadata (from checkout), then from server_roles table
+    const serverId = subscription.metadata?.discord_server_id;
+    let roleName = subscription.metadata?.role_name || null;
+    const priceId = subscription.items?.data?.[0]?.price?.id;
+    
+    // If not in metadata, look it up from server_roles table
+    if (!roleName && supabase && serverId && priceId) {
+      const { data: serverRole, error: roleError } = await supabase
+        .from('server_roles')
+        .select('role_name')
+        .eq('discord_server_id', serverId)
+        .eq('stripe_price_id', priceId)
+        .maybeSingle();
+      
+      if (roleError) {
+        console.warn('⚠️ Error looking up role for price (update):', roleError);
+      } else if (serverRole) {
+        roleName = serverRole.role_name;
+      }
+    }
+
     const updateData = {
       status: subscription.status,
-      price_id: subscription.items?.data?.[0]?.price?.id,
+      price_id: priceId,
+      role_name: roleName,
       metadata: subscription.metadata,
       updated_at: new Date().toISOString(),
     };
@@ -734,6 +785,5 @@ module.exports = {
   updateServerConversionRate,
   getCustomerSubscriptions,
   createOrGetCustomer,
-  PAID_ROLE_NAME,
   FREE_ROLE_NAME
 };
