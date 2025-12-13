@@ -252,14 +252,26 @@ client.on('interactionCreate', async interaction => {
 // Handle message replies for role selection
 client.on('messageCreate', async message => {
     try {
+        // Log ALL messages for debugging
+        console.log(`📬 Raw message event received from ${message.author?.tag || 'unknown'} (${message.author?.id || 'unknown'})`);
+        
         // Ignore bot messages
-        if (message.author.bot) return;
+        if (message.author.bot) {
+            console.log(`🤖 Ignoring bot message`);
+            return;
+        }
 
         // Must have a guild
-        if (!message.guild) return;
+        if (!message.guild) {
+            console.log(`❌ Message has no guild, skipping`);
+            return;
+        }
 
         // Only handle messages in membership channel
-        if (!message.channel) return;
+        if (!message.channel) {
+            console.log(`❌ Message has no channel, skipping`);
+            return;
+        }
         
         // Handle both regular channels and threads - check channel name (case-insensitive)
         let channelName = null;
@@ -269,10 +281,15 @@ client.on('messageCreate', async message => {
             channelName = message.channel.parent.name.toLowerCase();
         }
         
+        console.log(`📝 Message in channel: "${channelName}" (looking for: "${MEMBERSHIP_CHANNEL_NAME.toLowerCase()}")`);
+        
         if (channelName !== MEMBERSHIP_CHANNEL_NAME.toLowerCase()) {
             // Not in membership channel, skip
+            console.log(`⏭️ Skipping - not in membership channel`);
             return;
         }
+        
+        console.log(`✅ Message is in membership channel!`);
 
         const userId = message.author.id;
         const serverId = message.guild.id;
