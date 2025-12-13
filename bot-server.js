@@ -220,13 +220,16 @@ client.on('interactionCreate', async interaction => {
                 serverId,
                 userId,
                 availableRoles,
-                interaction: interaction,
                 timestamp: Date.now()
             });
+
+            console.log(`💾 Stored role selection for ${userId} in server ${serverId}`);
+            console.log(`📋 Available roles:`, availableRoles.map(r => r.role_name));
 
             // Set timeout to clean up after 60 seconds
             setTimeout(() => {
                 if (activeRoleSelections.has(selectionKey)) {
+                    console.log(`⏰ Cleaning up expired role selection for ${selectionKey}`);
                     activeRoleSelections.delete(selectionKey);
                 }
             }, 60000);
@@ -253,14 +256,30 @@ client.on('messageCreate', async message => {
         if (message.author.bot) return;
 
         // Only handle messages in membership channel
-        if (!message.channel || message.channel.name !== MEMBERSHIP_CHANNEL_NAME) return;
+        if (!message.channel) return;
+        
+        // Handle both regular channels and threads
+        const channelName = message.channel.name || (message.channel.parent ? message.channel.parent.name : null);
+        if (channelName !== MEMBERSHIP_CHANNEL_NAME) return;
+
+        // Must have a guild
+        if (!message.guild) return;
 
         const userId = message.author.id;
         const serverId = message.guild.id;
         const selectionKey = `${userId}-${serverId}`;
         const selection = activeRoleSelections.get(selectionKey);
 
-        if (!selection) return; // No active selection for this user
+        console.log(`📨 Message received from ${message.author.tag} in ${message.guild.name}: "${message.content}"`);
+        console.log(`🔑 Looking for selection with key: ${selectionKey}`);
+        console.log(`📋 Active selections: ${activeRoleSelections.size}`);
+
+        if (!selection) {
+            console.log(`❌ No active selection found for key: ${selectionKey}`);
+            return; // No active selection for this user
+        }
+
+        console.log(`✅ Found active selection: action=${selection.action}, roles=${selection.availableRoles.length}`);
 
         // Check if message is too old (more than 60 seconds)
         if (Date.now() - selection.timestamp > 60000) {
@@ -269,22 +288,33 @@ client.on('messageCreate', async message => {
         }
 
         const userResponse = message.content.trim();
+        console.log(`🔍 Processing user response: "${userResponse}"`);
+        console.log(`📝 Available roles:`, selection.availableRoles.map(r => r.role_name));
+        
         let selectedRole = null;
 
         // Try to match by number
         const numberMatch = parseInt(userResponse);
         if (!isNaN(numberMatch) && numberMatch >= 1 && numberMatch <= selection.availableRoles.length) {
             selectedRole = selection.availableRoles[numberMatch - 1];
+            console.log(`✅ Matched role by number ${numberMatch}: ${selectedRole.role_name}`);
         } else {
-            // Try to match by role name (case insensitive)
+            // Try to match by role name (case insensitive, partial match)
             selectedRole = selection.availableRoles.find(role =>
-                role.role_name.toLowerCase() === userResponse.toLowerCase()
+                role.role_name.toLowerCase() === userResponse.toLowerCase() ||
+                role.role_name.toLowerCase().includes(userResponse.toLowerCase()) ||
+                userResponse.toLowerCase().includes(role.role_name.toLowerCase())
             );
+            
+            if (selectedRole) {
+                console.log(`✅ Matched role by name: ${selectedRole.role_name}`);
+            }
         }
 
         if (!selectedRole) {
+            console.log(`❌ Could not match role from response: "${userResponse}"`);
             await message.reply({
-                content: `❌ I couldn't find that role. Please reply with the **number** or **name** from the list.`
+                content: `❌ I couldn't find that role. Please reply with the **number** (1, 2, etc.) or **exact name** from the list above.`
             });
             return;
         }
@@ -300,6 +330,7 @@ client.on('messageCreate', async message => {
         }
 
         // Get the subscription link
+        console.log(`🔗 Requesting ${selection.action} link for role: ${selectedRole.role_name} (price: ${selectedRole.stripe_price_id})`);
         const linkResult = await requestMembershipLink(
             selection.action,
             {
@@ -309,6 +340,8 @@ client.on('messageCreate', async message => {
             selectedRole.stripe_price_id,
             selectedRole.role_name
         );
+
+        console.log(`📊 Link result:`, linkResult.success ? 'Success' : `Failed: ${linkResult.content}`);
 
         if (!linkResult.success) {
             await message.channel.send({
