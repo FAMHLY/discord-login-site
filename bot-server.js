@@ -46,9 +46,12 @@ const client = new Client({
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent
+        GatewayIntentBits.MessageContent // REQUIRED to read message content
     ]
 });
+
+// Verify messageCreate event is registered
+console.log('📋 Registered event listeners:', client.eventNames());
 
 // Bot ready event - use 'ready' for Discord.js v14
 client.once('ready', async () => {
@@ -250,11 +253,17 @@ client.on('interactionCreate', async interaction => {
 });
 
 // Handle message replies for role selection
+console.log('🎯 Registering messageCreate event handler...');
 client.on('messageCreate', async message => {
+    // Log ALL messages for debugging - this should fire for EVERY message
+    console.log(`📬 [MESSAGE EVENT] Raw message event received!`);
+    console.log(`   Author: ${message.author?.tag || 'unknown'} (${message.author?.id || 'unknown'})`);
+    console.log(`   Bot: ${message.author?.bot || 'unknown'}`);
+    console.log(`   Guild: ${message.guild?.name || 'none'} (${message.guild?.id || 'none'})`);
+    console.log(`   Channel: ${message.channel?.name || 'unknown'} (${message.channel?.id || 'unknown'})`);
+    console.log(`   Content: "${message.content || '(no content)'}"`);
+    
     try {
-        // Log ALL messages for debugging
-        console.log(`📬 Raw message event received from ${message.author?.tag || 'unknown'} (${message.author?.id || 'unknown'})`);
-        
         // Ignore bot messages
         if (message.author.bot) {
             console.log(`🤖 Ignoring bot message`);
