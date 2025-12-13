@@ -255,28 +255,42 @@ client.on('messageCreate', async message => {
         // Ignore bot messages
         if (message.author.bot) return;
 
+        // Must have a guild
+        if (!message.guild) return;
+
         // Only handle messages in membership channel
         if (!message.channel) return;
         
-        // Handle both regular channels and threads
-        const channelName = message.channel.name || (message.channel.parent ? message.channel.parent.name : null);
-        if (channelName !== MEMBERSHIP_CHANNEL_NAME) return;
-
-        // Must have a guild
-        if (!message.guild) return;
+        // Handle both regular channels and threads - check channel name (case-insensitive)
+        let channelName = null;
+        if (message.channel.name) {
+            channelName = message.channel.name.toLowerCase();
+        } else if (message.channel.parent && message.channel.parent.name) {
+            channelName = message.channel.parent.name.toLowerCase();
+        }
+        
+        if (channelName !== MEMBERSHIP_CHANNEL_NAME.toLowerCase()) {
+            // Not in membership channel, skip
+            return;
+        }
 
         const userId = message.author.id;
         const serverId = message.guild.id;
         const selectionKey = `${userId}-${serverId}`;
-        const selection = activeRoleSelections.get(selectionKey);
-
-        console.log(`📨 Message received from ${message.author.tag} in ${message.guild.name}: "${message.content}"`);
+        
+        console.log(`📨 Message received from ${message.author.tag} (${userId}) in channel "${message.channel.name}" of server ${message.guild.name} (${serverId}): "${message.content}"`);
         console.log(`🔑 Looking for selection with key: ${selectionKey}`);
-        console.log(`📋 Active selections: ${activeRoleSelections.size}`);
+        console.log(`📋 Total active selections: ${activeRoleSelections.size}`);
+        if (activeRoleSelections.size > 0) {
+            console.log(`📋 Active selection keys:`, Array.from(activeRoleSelections.keys()));
+        }
+
+        const selection = activeRoleSelections.get(selectionKey);
 
         if (!selection) {
             console.log(`❌ No active selection found for key: ${selectionKey}`);
-            return; // No active selection for this user
+            // Don't respond if there's no active selection - user might just be chatting
+            return;
         }
 
         console.log(`✅ Found active selection: action=${selection.action}, roles=${selection.availableRoles.length}`);
