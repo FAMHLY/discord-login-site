@@ -682,44 +682,33 @@ async function updateAllMemberRolesForActiveServers() {
  */
 async function sendSubscriptionReport(currentCount, newSubscriptions, cancelledSubscriptions) {
     try {
-        // Find the channel in all guilds
-        let targetChannel = null;
-        
+        const reportTargets = [];
+
+        // Find all valid #linkwizard channels across all guilds
         for (const guild of client.guilds.cache.values()) {
-            const channel = guild.channels.cache.find(
-                ch => ch.type === 0 && ch.name === LINKWIZARD_CHANNEL_NAME
+            const channel = guild.channels.cache.find(ch => 
+                ch.type === 0 && // text channel
+                ch.name.toLowerCase() === LINKWIZARD_CHANNEL_NAME.toLowerCase()
             );
-            
+
             if (channel) {
-                targetChannel = channel;
-                break;
+                const botMember = guild.members.cache.get(client.user.id);
+                if (botMember?.permissionsIn(channel).has(PermissionFlagsBits.SendMessages)) {
+                    reportTargets.push({ guildName: guild.name, channel });
+                } else {
+                    console.warn(`Missing send permission in #${LINKWIZARD_CHANNEL_NAME} on ${guild.name}`);
+                }
             }
         }
 
-        if (!targetChannel) {
-            console.error(`❌ Could not find #${LINKWIZARD_CHANNEL_NAME} channel in any server`);
+        if (reportTargets.length === 0) {
+            console.warn(`No accessible #${LINKWIZARD_CHANNEL_NAME} channels found in any server`);
             return;
         }
 
-        // Check if bot has permission to send messages
-        const botMember = targetChannel.guild.members.cache.get(client.user.id);
-        if (!botMember?.permissionsIn(targetChannel).has(PermissionFlagsBits.SendMessages)) {
-            console.error(`❌ Bot does not have permission to send messages in #${LINKWIZARD_CHANNEL_NAME}`);
-            return;
-        }
+        console.log(`Sending report to ${reportTargets.length} server(s)`);
 
-        // Try to remove the most recent bot message before posting an update
-        try {
-            const recentMessages = await targetChannel.messages.fetch({ limit: 50 });
-            const lastBotMessage = recentMessages.find(msg => msg.author.id === client.user.id);
-            if (lastBotMessage) {
-                await lastBotMessage.delete();
-                console.log('🧹 Removed previous subscription report message');
-            }
-        } catch (fetchError) {
-            console.warn('⚠️ Unable to remove previous subscription report message:', fetchError.message);
-        }
-
+        // Build the message once (same content everywhere)
         const now = new Date();
         const estTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
         const timeString = estTime.toLocaleTimeString('en-US', { 
@@ -734,7 +723,6 @@ async function sendSubscriptionReport(currentCount, newSubscriptions, cancelledS
             timeZone: 'America/New_York'
         });
 
-        // Create formatted message
         const message = `📊 **Subscription Snapshot** - ${dateString} at ${timeString} EST (updates every 30 min)
 
 ✅ **Status:** System is operational
@@ -747,11 +735,24 @@ ${newSubscriptions === 0 && cancelledSubscriptions === 0 ? '📊 **Change:** No 
 ${newSubscriptions > 0 || cancelledSubscriptions > 0 ? `\n**Net Change Today:** ${newSubscriptions - cancelledSubscriptions > 0 ? '+' : ''}${newSubscriptions - cancelledSubscriptions}` : ''}
 \n🕒 Next automatic update in ~30 minutes.`;
 
-        await targetChannel.send(message);
-        console.log(`✅ Sent subscription report to #${LINKWIZARD_CHANNEL_NAME}`);
+        // Send to every valid channel + optional cleanup of previous bot message
+        for (const { guildName, channel } of reportTargets) {
+            try {
+                // Optional: clean up old report (nice to have)
+                const recent = await channel.messages.fetch({ limit: 10 });
+                const lastBotMsg = recent.find(m => m.author.id === client.user.id && m.content.includes('Subscription Snapshot'));
+                if (lastBotMsg) {
+                    await lastBotMsg.delete().catch(() => {});
+                }
 
+                await channel.send(message);
+                console.log(`Report sent to ${guildName} #${LINKWIZARD_CHANNEL_NAME}`);
+            } catch (err) {
+                console.error(`Failed to send report to ${guildName}:`, err.message);
+            }
+        }
     } catch (error) {
-        console.error('❌ Error sending subscription report:', error);
+        console.error('❌ Error in sendSubscriptionReport:', error);
     }
 }
 
