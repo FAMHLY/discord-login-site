@@ -410,7 +410,7 @@ async function handleSubscriptionCreated(subscription) {
       stripe_customer_id: typeof customerId === 'string' ? customerId : customerId.id,
       discord_user_id: discordUserId,
       discord_server_id: serverId,
-      status: subscription.status,
+      status: 'active',
       price_id: priceId,
       role_name: roleName,
       metadata: subscription.metadata,
