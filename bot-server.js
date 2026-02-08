@@ -7,7 +7,7 @@ const cors = require('cors');
 const cron = require('node-cron');
 const { createClient } = require('@supabase/supabase-js');
 const axios = require('axios');
-const { updateAllMemberRoles } = require('./role-manager');
+const { updateAllMemberRoles, handleSubscriptionChange } = require('./role-manager');
 
 const app = express();
 app.use(express.json());
@@ -1054,6 +1054,28 @@ app.get('/api/bot/keepalive', async (req, res) => {
             message: error.message,
             timestamp: new Date().toISOString()
         });
+    }
+});
+
+// Role assignment endpoint - called by Vercel webhook after subscription changes
+app.post('/api/bot/assign-role', async (req, res) => {
+    try {
+        const token = req.headers['x-bot-token'];
+        if (!BOT_API_TOKEN || token !== BOT_API_TOKEN) {
+            return res.status(401).json({ success: false, error: 'Unauthorized' });
+        }
+
+        const { discordUserId, serverId, status } = req.body;
+        if (!discordUserId || !serverId || !status) {
+            return res.status(400).json({ success: false, error: 'Missing required fields: discordUserId, serverId, status' });
+        }
+
+        console.log(`🎭 Role assignment request: user=${discordUserId} server=${serverId} status=${status}`);
+        const result = await handleSubscriptionChange(discordUserId, serverId, status, client);
+        res.json(result);
+    } catch (error) {
+        console.error('❌ Error in assign-role endpoint:', error);
+        res.status(500).json({ success: false, error: error.message });
     }
 });
 

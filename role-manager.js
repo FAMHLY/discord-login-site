@@ -245,40 +245,12 @@ async function handleSubscriptionChange(discordUserId, serverId, status, client 
   try {
     console.log(`📊 Handling subscription change: ${discordUserId} in ${serverId} -> ${status}`);
     
-    // Get or create Discord client
-    let discordClient = client;
-    if (!discordClient) {
-      // Try to use the client from bot-server.js if available
-      try {
-        // Check if we can access the client from bot-server
-        // Note: This will only work if bot-server.js has already been loaded/started
-        const path = require('path');
-        const botServerPath = path.join(__dirname, 'bot-server.js');
-        delete require.cache[require.resolve(botServerPath)];
-        const botServer = require('../bot-server');
-        discordClient = botServer?.client;
-      } catch (e) {
-        // If bot-server isn't loaded, create a temporary client
-        console.log('Creating temporary Discord client for role assignment...');
-        const { Client, GatewayIntentBits } = require('discord.js');
-        discordClient = new Client({
-          intents: [
-            GatewayIntentBits.Guilds,
-            GatewayIntentBits.GuildMembers
-          ]
-        });
-        await discordClient.login(process.env.DISCORD_BOT_TOKEN);
-        // Wait for ready
-        await new Promise((resolve) => {
-          discordClient.once('clientReady', resolve);
-        });
-      }
-    }
-    
-    if (!discordClient || !discordClient.isReady()) {
-      console.error('Discord client not available for role assignment');
+    if (!client || !client.isReady()) {
+      console.error('Discord client not available for role assignment. Ensure the bot server calls this with its client.');
       return { success: false, error: 'Discord client not available' };
     }
+
+    const discordClient = client;
     
     // Find the guild
     const guild = discordClient.guilds.cache.get(serverId);

@@ -1,7 +1,9 @@
 // Stripe webhook handler that works with Vercel's body parsing limitations
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const { handleSubscriptionCreated, handleSubscriptionUpdated, handleSubscriptionDeleted, updateServerConversionRate } = require('./stripe');
-const { handleSubscriptionChange } = require('../role-manager');
+
+const BOT_SERVER_URL = process.env.BOT_SERVER_URL;
+const BOT_API_TOKEN = process.env.BOT_API_TOKEN;
 
 // Collect raw body from request stream
 function getRawBody(req) {
@@ -11,6 +13,50 @@ function getRawBody(req) {
     req.on('end', () => resolve(Buffer.concat(chunks)));
     req.on('error', reject);
   });
+}
+
+/**
+ * Request the bot server to assign/update a Discord role
+ */
+async function requestRoleAssignment(discordUserId, serverId, status) {
+  if (!BOT_SERVER_URL) {
+    console.error('⚠️ BOT_SERVER_URL not configured, cannot assign role');
+    return;
+  }
+
+  try {
+    console.log(`🔗 Requesting role assignment from bot server: user=${discordUserId} server=${serverId} status=${status}`);
+    const response = await fetch(`${BOT_SERVER_URL}/api/bot/assign-role`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-bot-token': BOT_API_TOKEN || '',
+      },
+      body: JSON.stringify({ discordUserId, serverId, status }),
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      console.log(`✅ Role assignment successful`);
+    } else {
+      console.error(`⚠️ Role assignment failed:`, result.error);
+    }
+  } catch (error) {
+    console.error('⚠️ Error calling bot server for role assignment:', error.message);
+  }
+}
+
+/**
+ * Get Discord user ID from a Stripe subscription's customer metadata
+ */
+async function getDiscordUserId(subscription) {
+  let customer;
+  if (typeof subscription.customer === 'string') {
+    customer = await stripe.customers.retrieve(subscription.customer);
+  } else {
+    customer = subscription.customer;
+  }
+  return customer.metadata?.discord_user_id || subscription.metadata?.discord_user_id;
 }
 
 const handler = async (req, res) => {
@@ -48,28 +94,13 @@ const handler = async (req, res) => {
         const subscription = event.data.object;
         await handleSubscriptionCreated(subscription);
         await handleSubscriptionUpdated(subscription);
-        
-        // Update Discord roles
+
+        // Update Discord roles via bot server
         if (subscription.metadata?.discord_server_id && subscription.customer) {
           try {
-            // Get Discord user ID from customer metadata
-            let customer;
-            let discordUserId;
-            
-            if (typeof subscription.customer === 'string') {
-              customer = await stripe.customers.retrieve(subscription.customer);
-            } else {
-              customer = subscription.customer;
-            }
-            
-            discordUserId = customer.metadata?.discord_user_id || subscription.metadata?.discord_user_id;
-            
+            const discordUserId = await getDiscordUserId(subscription);
             if (discordUserId) {
-              await handleSubscriptionChange(
-                discordUserId,
-                subscription.metadata.discord_server_id,
-                'active'
-              );
+              await requestRoleAssignment(discordUserId, subscription.metadata.discord_server_id, 'active');
             } else {
               console.error('⚠️ No Discord user ID found in customer or subscription metadata');
             }
@@ -83,28 +114,13 @@ const handler = async (req, res) => {
         console.log('📝 Subscription updated');
         const updatedSubscription = event.data.object;
         await handleSubscriptionUpdated(updatedSubscription);
-        
-        // Handle subscription status changes
+
+        // Update Discord roles via bot server
         if (updatedSubscription.metadata?.discord_server_id && updatedSubscription.customer) {
           try {
-            // Get Discord user ID from customer metadata
-            let customer;
-            let discordUserId;
-            
-            if (typeof updatedSubscription.customer === 'string') {
-              customer = await stripe.customers.retrieve(updatedSubscription.customer);
-            } else {
-              customer = updatedSubscription.customer;
-            }
-            
-            discordUserId = customer.metadata?.discord_user_id || updatedSubscription.metadata?.discord_user_id;
-            
+            const discordUserId = await getDiscordUserId(updatedSubscription);
             if (discordUserId) {
-              await handleSubscriptionChange(
-                discordUserId,
-                updatedSubscription.metadata.discord_server_id,
-                updatedSubscription.status
-              );
+              await requestRoleAssignment(discordUserId, updatedSubscription.metadata.discord_server_id, updatedSubscription.status);
             } else {
               console.error('⚠️ No Discord user ID found in customer or subscription metadata');
             }
@@ -112,7 +128,7 @@ const handler = async (req, res) => {
             console.error('⚠️ Discord role update failed:', roleError);
           }
         }
-        
+
         // Update conversion rate
         if (updatedSubscription.metadata?.discord_server_id) {
           await updateServerConversionRate(updatedSubscription.metadata.discord_server_id);
@@ -123,28 +139,13 @@ const handler = async (req, res) => {
         console.log('❌ Subscription deleted');
         const deletedSubscription = event.data.object;
         await handleSubscriptionDeleted(deletedSubscription);
-        
-        // Update Discord roles (remove paid role)
+
+        // Update Discord roles via bot server
         if (deletedSubscription.metadata?.discord_server_id && deletedSubscription.customer) {
           try {
-            // Get Discord user ID from customer metadata
-            let customer;
-            let discordUserId;
-            
-            if (typeof deletedSubscription.customer === 'string') {
-              customer = await stripe.customers.retrieve(deletedSubscription.customer);
-            } else {
-              customer = deletedSubscription.customer;
-            }
-            
-            discordUserId = customer.metadata?.discord_user_id || deletedSubscription.metadata?.discord_user_id;
-            
+            const discordUserId = await getDiscordUserId(deletedSubscription);
             if (discordUserId) {
-              await handleSubscriptionChange(
-                discordUserId,
-                deletedSubscription.metadata.discord_server_id,
-                'cancelled'
-              );
+              await requestRoleAssignment(discordUserId, deletedSubscription.metadata.discord_server_id, 'cancelled');
             } else {
               console.error('⚠️ No Discord user ID found in customer or subscription metadata');
             }
@@ -192,11 +193,11 @@ module.exports.config = {
 async function handleCheckoutCompleted(session) {
   try {
     console.log(`✅ Checkout completed for session: ${session.id}`);
-    
+
     if (session.metadata?.discord_server_id) {
       console.log(`Checkout completed for server: ${session.metadata.discord_server_id}`);
     }
-    
+
   } catch (error) {
     console.error('Error handling checkout completed:', error);
   }
@@ -208,23 +209,23 @@ async function handleCheckoutCompleted(session) {
 async function handleInvoicePaymentSucceeded(invoice) {
   try {
     console.log(`💰 Payment succeeded for invoice: ${invoice.id}`);
-    
+
     // Check if invoice has a subscription
     if (!invoice.subscription) {
       console.log('⚠️  Invoice has no subscription, skipping...');
       return;
     }
-    
+
     // Get the subscription
     const subscription = await stripe.subscriptions.retrieve(invoice.subscription);
-    
+
     if (subscription.metadata?.discord_server_id) {
       console.log(`Payment succeeded for server: ${subscription.metadata.discord_server_id}`);
-      
+
       // Update conversion rate
       await updateServerConversionRate(subscription.metadata.discord_server_id);
     }
-    
+
   } catch (error) {
     console.error('Error handling invoice payment succeeded:', error);
   }
@@ -236,41 +237,25 @@ async function handleInvoicePaymentSucceeded(invoice) {
 async function handleInvoicePaymentFailed(invoice) {
   try {
     console.log(`💸 Payment failed for invoice: ${invoice.id}`);
-    
+
     // Get the subscription
     const subscription = await stripe.subscriptions.retrieve(invoice.subscription);
-    
-      if (subscription.metadata?.discord_server_id && subscription.customer) {
-        console.log(`Payment failed for server: ${subscription.metadata.discord_server_id}`);
-        
-        try {
-          // Get Discord user ID from customer metadata
-          let customer;
-          let discordUserId;
-          
-          if (typeof subscription.customer === 'string') {
-            customer = await stripe.customers.retrieve(subscription.customer);
-          } else {
-            customer = subscription.customer;
-          }
-          
-          discordUserId = customer.metadata?.discord_user_id || subscription.metadata?.discord_user_id;
-          
-          if (discordUserId) {
-            // Update Discord roles (might downgrade to free role)
-            await handleSubscriptionChange(
-              discordUserId,
-              subscription.metadata.discord_server_id,
-              'past_due'
-            );
-          } else {
-            console.error('⚠️ No Discord user ID found in customer or subscription metadata');
-          }
-        } catch (roleError) {
-          console.error('⚠️ Discord role update failed:', roleError);
+
+    if (subscription.metadata?.discord_server_id && subscription.customer) {
+      console.log(`Payment failed for server: ${subscription.metadata.discord_server_id}`);
+
+      try {
+        const discordUserId = await getDiscordUserId(subscription);
+        if (discordUserId) {
+          await requestRoleAssignment(discordUserId, subscription.metadata.discord_server_id, 'past_due');
+        } else {
+          console.error('⚠️ No Discord user ID found in customer or subscription metadata');
         }
+      } catch (roleError) {
+        console.error('⚠️ Discord role update failed:', roleError);
       }
-    
+    }
+
   } catch (error) {
     console.error('Error handling invoice payment failed:', error);
   }
