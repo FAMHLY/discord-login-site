@@ -89,74 +89,87 @@ async function assignMemberRole(member, serverId) {
       console.log(`Removed ${FREE_ROLE_NAME} role from ${member.user.tag}`);
     }
     
-    // Get all roles from server_roles table for this server
+    // Get all roles from server_roles table for this server (including discord_role_name mapping)
     const { data: serverRoles, error: rolesError } = await supabase
       .from('server_roles')
-      .select('role_name')
+      .select('role_name, discord_role_name')
       .eq('discord_server_id', serverId);
-    
+
     if (rolesError) {
       console.error('Error fetching server roles:', rolesError);
     }
-    
+
     const validRoleNames = new Set((serverRoles || []).map(r => r.role_name));
-    
+    // Build a map from role_name to the actual Discord role name to use
+    const discordRoleNameMap = {};
+    for (const sr of (serverRoles || [])) {
+      discordRoleNameMap[sr.role_name] = sr.discord_role_name || sr.role_name;
+    }
+
     // Remove any old subscription roles that are no longer active
     if (serverRoles && serverRoles.length > 0) {
-      for (const serverRole of serverRoles) {
-        const roleName = serverRole.role_name;
-        const discordRole = member.guild.roles.cache.find(r => r.name === roleName);
-        
+      // Get unique Discord role names that should still be active
+      const activeDiscordRoles = new Set(
+        (subscriptions || []).map(sub => discordRoleNameMap[sub.role_name] || sub.role_name)
+      );
+
+      // Get unique Discord role names from all server roles
+      const allDiscordRoleNames = new Set(Object.values(discordRoleNameMap));
+
+      for (const discordRoleName of allDiscordRoleNames) {
+        const discordRole = member.guild.roles.cache.find(r => r.name === discordRoleName);
+
         if (discordRole && member.roles.cache.has(discordRole.id)) {
-          // Check if this role is still in active subscriptions
-          const stillHasRole = subscriptions?.some(sub => sub.role_name === roleName);
-          if (!stillHasRole) {
+          if (!activeDiscordRoles.has(discordRoleName)) {
             await member.roles.remove(discordRole, 'Subscription expired or cancelled');
-            console.log(`Removed ${roleName} role from ${member.user.tag}`);
+            console.log(`Removed ${discordRoleName} role from ${member.user.tag}`);
           }
         }
       }
     }
-    
+
     // Assign roles based on active subscriptions
     const assignedRoles = [];
     if (hasActiveSubscriptions) {
       for (const subscription of subscriptions) {
         const roleName = subscription.role_name;
-        
+
         if (!roleName) {
           console.warn(`Subscription ${subscription.price_id} has no role_name, skipping`);
           continue;
         }
-        
+
         if (!validRoleNames.has(roleName)) {
           console.warn(`Role ${roleName} not found in server_roles table, skipping`);
           continue;
         }
-        
+
+        // Use discord_role_name if configured, otherwise fall back to role_name
+        const actualRoleName = discordRoleNameMap[roleName] || roleName;
+
         // Find or create the role in Discord
-        let discordRole = member.guild.roles.cache.find(r => r.name === roleName);
-        
+        let discordRole = member.guild.roles.cache.find(r => r.name === actualRoleName);
+
         if (!discordRole) {
           // Role doesn't exist in Discord, try to create it (without color)
           try {
             discordRole = await member.guild.roles.create({
-              name: roleName,
+              name: actualRoleName,
               mentionable: false,
               reason: 'Created subscription role from server_roles table'
             });
-            console.log(`✅ Created Discord role: ${roleName}`);
+            console.log(`✅ Created Discord role: ${actualRoleName}`);
           } catch (createError) {
-            console.error(`Failed to create role ${roleName}:`, createError);
+            console.error(`Failed to create role ${actualRoleName}:`, createError);
             continue;
           }
         }
-        
+
         // Assign the role if not already assigned
         if (!member.roles.cache.has(discordRole.id)) {
           await member.roles.add(discordRole, 'Active subscription - assigned role');
-          console.log(`✅ Assigned ${roleName} role to ${member.user.tag}`);
-          assignedRoles.push(roleName);
+          console.log(`✅ Assigned ${actualRoleName} role to ${member.user.tag}`);
+          assignedRoles.push(actualRoleName);
         }
       }
     } else {
