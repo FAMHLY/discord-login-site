@@ -3,7 +3,17 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const { handleSubscriptionCreated, handleSubscriptionUpdated, handleSubscriptionDeleted, updateServerConversionRate } = require('./stripe');
 const { handleSubscriptionChange } = require('../role-manager');
 
-module.exports = async (req, res) => {
+// Collect raw body from request stream
+function getRawBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on('data', chunk => chunks.push(chunk));
+    req.on('end', () => resolve(Buffer.concat(chunks)));
+    req.on('error', reject);
+  });
+}
+
+const handler = async (req, res) => {
   // Only allow POST requests
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -13,50 +23,15 @@ module.exports = async (req, res) => {
   let event;
 
   try {
-    // For Vercel, we need to work around the automatic JSON parsing
-    // The key insight is that we need to reconstruct the exact JSON string
-    // that Stripe sent, including preserving the exact formatting
-    
-    let rawBody;
-    
-    if (Buffer.isBuffer(req.body)) {
-      // Body is already a buffer (ideal case)
-      rawBody = req.body;
-    } else if (typeof req.body === 'string') {
-      // Body is a string, convert to buffer
-      rawBody = Buffer.from(req.body, 'utf8');
-    } else {
-      // Body was parsed as JSON object - we need to reconstruct it
-      // Use JSON.stringify with no spaces to match Stripe's format
-      rawBody = Buffer.from(JSON.stringify(req.body), 'utf8');
-    }
-    
-    // Verify webhook signature
+    // Read the raw body directly from the stream (body parsing is disabled via config below)
+    const rawBody = await getRawBody(req);
+
+    // Verify webhook signature with the raw body
     event = stripe.webhooks.constructEvent(rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET);
     console.log(`📡 Received Stripe webhook: ${event.type}`);
   } catch (err) {
     console.error('Webhook signature verification failed:', err.message);
-    console.error('Headers:', req.headers);
-    console.error('Body type:', typeof req.body);
-    console.error('Body length:', req.body?.length);
-    console.error('Stripe signature:', sig);
-    
-    // For debugging, let's try to process the event anyway if signature verification fails
-    // This is NOT recommended for production, but helps us debug
-    console.log('⚠️  Attempting to process event without signature verification for debugging...');
-    
-    try {
-      // Try to parse the body as a Stripe event
-      if (typeof req.body === 'object' && req.body.type) {
-        event = req.body;
-        console.log(`📡 Processing event without signature verification: ${event.type}`);
-      } else {
-        throw new Error('Cannot parse event from body');
-      }
-    } catch (parseErr) {
-      console.error('Failed to parse event:', parseErr.message);
-      return res.status(400).json({ error: `Webhook Error: ${err.message}` });
-    }
+    return res.status(400).json({ error: `Webhook Error: ${err.message}` });
   }
 
   try {
@@ -200,6 +175,15 @@ module.exports = async (req, res) => {
     console.error('Error handling webhook:', error);
     res.status(500).json({ error: 'Webhook handler failed' });
   }
+};
+
+module.exports = handler;
+
+// Disable Vercel's automatic body parsing so we get the raw body for Stripe signature verification
+module.exports.config = {
+  api: {
+    bodyParser: false,
+  },
 };
 
 /**
