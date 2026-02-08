@@ -4,10 +4,10 @@ require('dotenv').config();
 const { Client, GatewayIntentBits, PermissionFlagsBits, SlashCommandBuilder, MessageFlags, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
 const express = require('express');
 const cors = require('cors');
-const cron = require('node-cron');
+
 const { createClient } = require('@supabase/supabase-js');
 const axios = require('axios');
-const { updateAllMemberRoles, handleSubscriptionChange } = require('./role-manager');
+const { handleSubscriptionChange } = require('./role-manager');
 
 const app = express();
 app.use(express.json());
@@ -15,7 +15,7 @@ app.use(cors());
 
 const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
 const PORT = process.env.PORT || 3001;
-const LINKWIZARD_CHANNEL_NAME = 'linkwizard'; // Channel name to post reports to
+
 const MEMBERSHIP_CHANNEL_NAME = 'membership'; // Channel name for subscribe/unsubscribe commands
 const MEMBER_API_BASE_URL =
   process.env.MEMBER_API_BASE_URL ||
@@ -78,13 +78,6 @@ client.once('ready', async () => {
         }
     }
 
-    // Set up subscription checks every 30 minutes
-    setupRecurringSubscriptionCheck();
-    
-    // Kick off an initial check shortly after startup
-    setTimeout(() => {
-        checkSubscriptions();
-    }, 5000);
 });
 
 // Bot error handling
@@ -480,283 +473,6 @@ client.on('messageCreate', async message => {
 });
 
 /**
- * Check current subscriptions and compare with previous day
- */
-async function checkSubscriptions() {
-    try {
-        if (!supabase) {
-            console.error('❌ Cannot check subscriptions: Supabase client not initialized');
-            return;
-        }
-
-        if (!client.isReady()) {
-            console.error('❌ Cannot check subscriptions: Discord client not ready');
-            return;
-        }
-
-        console.log('📊 Starting daily subscription check...');
-        const now = new Date();
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const todayStr = today.toISOString().split('T')[0]; // YYYY-MM-DD format
-
-        // Get all active subscriptions
-        const { data: activeSubscriptions, error: subscriptionsError } = await supabase
-            .from('subscriptions')
-            .select('id, discord_user_id, discord_server_id, status, created_at, cancelled_at')
-            .eq('status', 'active');
-
-        if (subscriptionsError) {
-            console.error('❌ Error fetching subscriptions:', subscriptionsError);
-            return;
-        }
-
-        const currentCount = activeSubscriptions.length;
-        console.log(`✅ Found ${currentCount} active subscriptions`);
-
-        // Get previous day's snapshot for comparison
-        const yesterday = new Date(today);
-        yesterday.setDate(yesterday.getDate() - 1);
-        const yesterdayStr = yesterday.toISOString().split('T')[0];
-
-        const { data: previousSnapshot } = await supabase
-            .from('daily_subscription_snapshots')
-            .select('total_active_subscriptions')
-            .eq('snapshot_date', yesterdayStr)
-            .single();
-
-        const previousCount = previousSnapshot?.total_active_subscriptions || 0;
-
-        // Calculate new subscriptions (created today and currently active)
-        const todayStart = new Date(todayStr + 'T00:00:00.000Z');
-        const todayEnd = new Date(todayStr + 'T23:59:59.999Z');
-        
-        const { data: newSubscriptions, error: newSubError } = await supabase
-            .from('subscriptions')
-            .select('id')
-            .eq('status', 'active')
-            .gte('created_at', todayStart.toISOString())
-            .lte('created_at', todayEnd.toISOString());
-
-        // Calculate cancelled subscriptions (cancelled today)
-        const { data: cancelledToday, error: cancelledError } = await supabase
-            .from('subscriptions')
-            .select('id')
-            .eq('status', 'cancelled')
-            .gte('cancelled_at', todayStart.toISOString())
-            .lte('cancelled_at', todayEnd.toISOString());
-
-        if (newSubError) {
-            console.error('⚠️ Error fetching new subscriptions:', newSubError);
-        }
-        if (cancelledError) {
-            console.error('⚠️ Error fetching cancelled subscriptions:', cancelledError);
-        }
-
-        const actualNew = newSubscriptions?.length || 0;
-        const actualCancelled = cancelledToday?.length || 0;
-
-        // Save today's snapshot
-        const { error: snapshotError } = await supabase
-            .from('daily_subscription_snapshots')
-            .upsert({
-                snapshot_date: todayStr,
-                total_active_subscriptions: currentCount,
-                subscriptions_created: actualNew,
-                subscriptions_cancelled: actualCancelled,
-                created_at: now.toISOString()
-            }, {
-                onConflict: 'snapshot_date'
-            });
-
-        if (snapshotError) {
-            console.error('⚠️ Error saving snapshot:', snapshotError);
-        } else {
-            console.log('✅ Saved daily snapshot');
-        }
-
-        // Update all member roles in all servers to match subscription status
-        console.log('🎭 Updating member roles based on subscription status...');
-        await updateAllMemberRolesForActiveServers();
-
-        // Send report to Discord channel
-        await sendSubscriptionReport(currentCount, actualNew, actualCancelled);
-
-    } catch (error) {
-        console.error('❌ Error in subscription check:', error);
-    }
-}
-
-/**
- * Update all member roles for servers that have active subscriptions
- */
-async function updateAllMemberRolesForActiveServers() {
-    try {
-        if (!supabase || !client.isReady()) {
-            console.warn('⚠️ Skipping role updates: bot or database not ready');
-            return;
-        }
-
-        // Get all unique server IDs that have active subscriptions
-        const { data: activeSubscriptions, error } = await supabase
-            .from('subscriptions')
-            .select('discord_server_id')
-            .eq('status', 'active');
-
-        if (error) {
-            console.error('⚠️ Error fetching servers for role updates:', error);
-            return;
-        }
-
-        // Collect target servers from active subscriptions and configured server settings
-        const serverIdSet = new Set(
-            (activeSubscriptions || [])
-                .map(sub => sub.discord_server_id)
-                .filter(Boolean)
-        );
-
-        try {
-            const { data: configuredServers, error: settingsError } = await supabase
-                .from('server_settings')
-                .select('discord_server_id');
-
-            if (settingsError) {
-                console.warn('⚠️ Error fetching configured servers for role updates:', settingsError);
-            } else {
-                for (const entry of configuredServers || []) {
-                    if (entry?.discord_server_id) {
-                        serverIdSet.add(entry.discord_server_id);
-                    }
-                }
-            }
-        } catch (settingsException) {
-            console.warn('⚠️ Failed to merge configured servers for role updates:', settingsException);
-        }
-
-        const serverIds = [...serverIdSet];
-        if (serverIds.length === 0) {
-            console.log('ℹ️ No servers found for role synchronization.');
-            return;
-        }
-
-        console.log(`🔄 Updating roles for ${serverIds.length} configured server(s)`);
-
-        let totalUpdated = 0;
-        let totalErrors = 0;
-
-        for (const serverId of serverIds) {
-            try {
-                const guild = client.guilds.cache.get(serverId);
-                if (!guild) {
-                    console.log(`⚠️ Server ${serverId} not found in bot's guilds`);
-                    continue;
-                }
-
-                console.log(`🔄 Updating roles in ${guild.name}...`);
-                const result = await updateAllMemberRoles(guild, serverId);
-                
-                if (result.success) {
-                    totalUpdated += result.updatedCount || 0;
-                    totalErrors += result.errorCount || 0;
-                    console.log(`✅ Updated ${result.updatedCount || 0} roles in ${guild.name}`);
-                } else {
-                    console.error(`❌ Failed to update roles in ${guild.name}:`, result.error);
-                    totalErrors++;
-                }
-
-                // Small delay between servers to avoid rate limits
-                await new Promise(resolve => setTimeout(resolve, 500));
-            } catch (error) {
-                console.error(`❌ Error updating roles for server ${serverId}:`, error);
-                totalErrors++;
-            }
-        }
-
-        console.log(`✅ Role update complete: ${totalUpdated} members updated, ${totalErrors} errors`);
-    } catch (error) {
-        console.error('❌ Error in updateAllMemberRolesForActiveServers:', error);
-    }
-}
-
-/**
- * Send subscription report to #linkwizard channel
- */
-async function sendSubscriptionReport(currentCount, newSubscriptions, cancelledSubscriptions) {
-    try {
-        const reportTargets = [];
-
-        // Find all valid #linkwizard channels across all guilds
-        for (const guild of client.guilds.cache.values()) {
-            const channel = guild.channels.cache.find(ch => 
-                ch.type === 0 && // text channel
-                ch.name.toLowerCase() === LINKWIZARD_CHANNEL_NAME.toLowerCase()
-            );
-
-            if (channel) {
-                const botMember = guild.members.cache.get(client.user.id);
-                if (botMember?.permissionsIn(channel).has(PermissionFlagsBits.SendMessages)) {
-                    reportTargets.push({ guildName: guild.name, channel });
-                } else {
-                    console.warn(`Missing send permission in #${LINKWIZARD_CHANNEL_NAME} on ${guild.name}`);
-                }
-            }
-        }
-
-        if (reportTargets.length === 0) {
-            console.warn(`No accessible #${LINKWIZARD_CHANNEL_NAME} channels found in any server`);
-            return;
-        }
-
-        console.log(`Sending report to ${reportTargets.length} server(s)`);
-
-        // Build the message once (same content everywhere)
-        const now = new Date();
-        const estTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
-        const timeString = estTime.toLocaleTimeString('en-US', { 
-            hour: 'numeric', 
-            minute: '2-digit',
-            timeZone: 'America/New_York'
-        });
-        const dateString = estTime.toLocaleDateString('en-US', {
-            month: 'long',
-            day: 'numeric',
-            year: 'numeric',
-            timeZone: 'America/New_York'
-        });
-
-        const message = `📊 **Subscription Snapshot** - ${dateString} at ${timeString} EST (updates every 30 min)
-
-✅ **Status:** System is operational
-
-📈 **Current Paid Members:** ${currentCount}
-${newSubscriptions > 0 ? `🆕 **New Subscriptions Today:** +${newSubscriptions}` : ''}
-${cancelledSubscriptions > 0 ? `❌ **Cancelled Subscriptions Today:** -${cancelledSubscriptions}` : ''}
-${newSubscriptions === 0 && cancelledSubscriptions === 0 ? '📊 **Change:** No changes since yesterday' : ''}
-
-${newSubscriptions > 0 || cancelledSubscriptions > 0 ? `\n**Net Change Today:** ${newSubscriptions - cancelledSubscriptions > 0 ? '+' : ''}${newSubscriptions - cancelledSubscriptions}` : ''}
-\n🕒 Next automatic update in ~30 minutes.`;
-
-        // Send to every valid channel + optional cleanup of previous bot message
-        for (const { guildName, channel } of reportTargets) {
-            try {
-                // Optional: clean up old report (nice to have)
-                const recent = await channel.messages.fetch({ limit: 10 });
-                const lastBotMsg = recent.find(m => m.author.id === client.user.id && m.content.includes('Subscription Snapshot'));
-                if (lastBotMsg) {
-                    await lastBotMsg.delete().catch(() => {});
-                }
-
-                await channel.send(message);
-                console.log(`Report sent to ${guildName} #${LINKWIZARD_CHANNEL_NAME}`);
-            } catch (err) {
-                console.error(`Failed to send report to ${guildName}:`, err.message);
-            }
-        }
-    } catch (error) {
-        console.error('❌ Error in sendSubscriptionReport:', error);
-    }
-}
-
-/**
  * Generate membership links via API
  */
 async function requestMembershipLink(action, interactionOrUser, priceId = null, roleName = null) {
@@ -831,21 +547,6 @@ async function requestMembershipLink(action, interactionOrUser, priceId = null, 
             content: '❌ Failed to connect to the membership service. Please try again later.'
         };
     }
-}
-
-/**
- * Set up the recurring subscription check cron job
- * Runs every 30 minutes (top and half hour) in America/New_York timezone
- */
-function setupRecurringSubscriptionCheck() {
-    cron.schedule('0,30 * * * *', async () => {
-        console.log('⏰ Running scheduled subscription check (every 30 minutes EST)...');
-        await checkSubscriptions();
-    }, {
-        timezone: 'America/New_York' // Automatically handles EST/EDT conversion
-    });
-
-    console.log('📅 Subscription checks scheduled every 30 minutes (America/New_York)');
 }
 
 // Generate Discord invite function
