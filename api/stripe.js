@@ -438,10 +438,10 @@ async function handleSubscriptionCreated(subscription) {
 
     console.log('Inserting subscription data:', subscriptionData);
 
-    // Store subscription in database
+    // Store subscription in database (upsert to handle Stripe webhook retries)
     const { error: dbError } = await supabase
       .from('subscriptions')
-      .insert(subscriptionData);
+      .upsert(subscriptionData, { onConflict: 'stripe_subscription_id' });
 
     if (dbError) {
       console.error('Error storing subscription:', dbError);
