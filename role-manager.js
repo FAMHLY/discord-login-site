@@ -270,7 +270,7 @@ async function handleSubscriptionChange(discordUserId, serverId, status, client 
         await discordClient.login(process.env.DISCORD_BOT_TOKEN);
         // Wait for ready
         await new Promise((resolve) => {
-          discordClient.once('ready', resolve);
+          discordClient.once('clientReady', resolve);
         });
       }
     }
