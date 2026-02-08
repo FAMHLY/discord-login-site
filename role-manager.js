@@ -92,7 +92,7 @@ async function assignMemberRole(member, serverId) {
     // Get all roles from server_roles table for this server (including discord_role_name mapping)
     const { data: serverRoles, error: rolesError } = await supabase
       .from('server_roles')
-      .select('role_name, discord_role_name')
+      .select('role_name, discord_role_name, stripe_price_id')
       .eq('discord_server_id', serverId);
 
     if (rolesError) {
@@ -109,8 +109,16 @@ async function assignMemberRole(member, serverId) {
     // Remove any old subscription roles that are no longer active
     if (serverRoles && serverRoles.length > 0) {
       // Get unique Discord role names that should still be active
+      // Resolve null role_names via price_id before computing active roles
       const activeDiscordRoles = new Set(
-        (subscriptions || []).map(sub => discordRoleNameMap[sub.role_name] || sub.role_name)
+        (subscriptions || []).map(sub => {
+          let rn = sub.role_name;
+          if (!rn && sub.price_id) {
+            const match = serverRoles.find(r => r.stripe_price_id === sub.price_id);
+            if (match) rn = match.role_name;
+          }
+          return rn ? (discordRoleNameMap[rn] || rn) : null;
+        }).filter(Boolean)
       );
 
       // Get unique Discord role names from all server roles
@@ -132,10 +140,19 @@ async function assignMemberRole(member, serverId) {
     const assignedRoles = [];
     if (hasActiveSubscriptions) {
       for (const subscription of subscriptions) {
-        const roleName = subscription.role_name;
+        let roleName = subscription.role_name;
+
+        // If role_name is missing, try to resolve it from server_roles using price_id
+        if (!roleName && subscription.price_id) {
+          const matchingRole = (serverRoles || []).find(r => r.stripe_price_id === subscription.price_id);
+          if (matchingRole) {
+            roleName = matchingRole.role_name;
+            console.log(`Resolved role_name "${roleName}" from price_id ${subscription.price_id}`);
+          }
+        }
 
         if (!roleName) {
-          console.warn(`Subscription ${subscription.price_id} has no role_name, skipping`);
+          console.warn(`Subscription ${subscription.price_id} has no role_name and no matching price in server_roles, skipping`);
           continue;
         }
 
