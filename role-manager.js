@@ -10,7 +10,7 @@ const supabase = createClient(
 );
 
 // Universal free tier role (no color)
-const FREE_ROLE_NAME = 'visitor';
+const FREE_ROLE_NAME = 'member';
 
 /**
  * Ensure the universal "visitor" role exists in a Discord server
