@@ -93,7 +93,6 @@ const handler = async (req, res) => {
         console.log('🎉 Subscription created');
         const subscription = event.data.object;
         await handleSubscriptionCreated(subscription);
-        await handleSubscriptionUpdated(subscription);
 
         // Update Discord roles via bot server
         if (subscription.metadata?.discord_server_id && subscription.customer) {

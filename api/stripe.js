@@ -19,7 +19,7 @@ try {
 }
 
 // Universal free role name (no color)
-const FREE_ROLE_NAME = 'visitor';
+const FREE_ROLE_NAME = 'member';
 
 async function getMemberAffiliate(discordServerId, discordUserId) {
   if (!supabase || !discordServerId || !discordUserId) {
