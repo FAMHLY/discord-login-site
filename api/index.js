@@ -344,8 +344,8 @@ app.get('/auth/discord', async (req, res) => {
   const siteUrl = process.env.PUBLIC_SITE_URL || 'https://discord-login-site.vercel.app';
 
   let redirectTo;
-  redirectTo = encodeURIComponent(`${siteUrl}/dashboard.html`);
-  console.log('Using Supabase callback flow with dashboard redirect');
+  redirectTo = encodeURIComponent(`${siteUrl}/auth/callback`);
+  console.log('Using Supabase callback flow with /auth/callback redirect');
   
   // Original logic (commented out for testing)
   /*
