@@ -322,13 +322,7 @@ app.get('/test-session', async (req, res) => {
 });
 
 app.get('/auth/discord', async (req, res) => {
-  const baseUrl = process.env.SUPABASE_URL; // Already includes https://
-
-  console.log('=== Discord OAuth Debug ===');
-  console.log('VERCEL_URL:', process.env.VERCEL_URL);
-  console.log('Request host:', req.headers.host);
-  console.log('X-Forwarded-Host:', req.headers['x-forwarded-host']);
-  console.log('X-Forwarded-Proto:', req.headers['x-forwarded-proto']);
+  console.log('=== Discord OAuth ===');
 
   // If a slug is provided, store it in a cookie to carry through OAuth
   if (req.query.slug) {
@@ -343,62 +337,33 @@ app.get('/auth/discord', async (req, res) => {
 
   const siteUrl = process.env.PUBLIC_SITE_URL || 'https://discord-login-site.vercel.app';
 
-  let redirectTo;
-  redirectTo = encodeURIComponent(`${siteUrl}/auth/callback`);
-  console.log('Using Supabase callback flow with /auth/callback redirect');
-  
-  // Original logic (commented out for testing)
-  /*
-  if (req.headers.host && req.headers.host.includes('vercel.app')) {
-    // Use the actual Vercel domain from the request
-    redirectTo = encodeURIComponent(`https://${req.headers.host}/auth/callback`);
-    console.log('Using Vercel domain from request host');
-  } else if (process.env.VERCEL_URL) {
-    // Use Vercel environment variable
-    redirectTo = encodeURIComponent(`https://${process.env.VERCEL_URL}/auth/callback`);
-    console.log('Using VERCEL_URL environment variable');
-  } else {
-    // Fallback - but this should not happen on Vercel
-    const protocol = req.headers['x-forwarded-proto'] || 'https';
-    const host = req.headers['x-forwarded-host'] || req.headers.host;
-    redirectTo = encodeURIComponent(`${protocol}://${host}/auth/callback`);
-    console.log('Using fallback method');
-  }
-  */
-  
-  const redirectUrl = `${baseUrl}/auth/v1/authorize?provider=discord&redirect_to=${redirectTo}`;
-  console.log('Final redirect URL:', redirectUrl);
-  console.log('Decoded redirect_to:', decodeURIComponent(redirectTo));
-  console.log('Supabase base URL:', baseUrl);
-  console.log('Expected callback URL:', decodeURIComponent(redirectTo));
-  console.log('=== IMPORTANT: Discord OAuth redirect should be Supabase callback ===');
-  console.log('Discord OAuth redirect URL should be:', `${baseUrl}/auth/v1/callback`);
-  
-  // Also try to get current Supabase auth settings
-  console.log('Environment variables check:', {
-    'SUPABASE_URL': process.env.SUPABASE_URL,
-    'SUPABASE_ANON_KEY': process.env.SUPABASE_ANON_KEY ? 'exists' : 'missing'
+  // Use Supabase signInWithOAuth for PKCE flow (sends code as query param, not hash fragment)
+  const supabase = createServerClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_ANON_KEY,
+    {
+      cookies: {
+        get: (name) => req.cookies[name],
+        set: (name, value, options) => res.cookie(name, value, options),
+        remove: (name, options) => res.clearCookie(name, options),
+      },
+    }
+  );
+
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: 'discord',
+    options: {
+      redirectTo: `${siteUrl}/auth/callback`,
+    },
   });
-  
-  // Check if we can access Supabase auth settings
-  console.log('Supabase auth URL should be:', `${baseUrl}/auth/v1/authorize`);
-  console.log('Discord callback URL should be:', `${baseUrl}/auth/v1/callback`);
-  
-  // Test if Supabase auth endpoint is accessible
-  try {
-    const testResponse = await axios.get(`${baseUrl}/auth/v1/authorize?provider=discord`, {
-      timeout: 5000,
-      validateStatus: () => true // Accept any status code
-    });
-    console.log('Supabase auth endpoint test:', {
-      status: testResponse.status,
-      accessible: testResponse.status < 500
-    });
-  } catch (error) {
-    console.log('Supabase auth endpoint test failed:', error.message);
+
+  if (error) {
+    console.error('OAuth error:', error);
+    return res.redirect('/?error=oauth_init');
   }
-  
-  res.redirect(redirectUrl);
+
+  console.log('Redirecting to OAuth URL:', data.url);
+  res.redirect(data.url);
 });
 
 // Handle Supabase OAuth callback redirect
