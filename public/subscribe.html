@@ -99,9 +99,8 @@
         const tier = await resp.json();
 
         let html = '';
-        if (tier.serverIcon) {
-          html += '<img class="server-icon-large" src="' + tier.serverIcon + '" alt="Server icon">';
-        }
+        const iconUrl = tier.serverIcon || 'https://cdn.discordapp.com/embed/avatars/0.png';
+        html += '<img class="server-icon-large" src="' + iconUrl + '" alt="Server icon" onerror="this.src=\'https://cdn.discordapp.com/embed/avatars/0.png\'">';
         html += '<p class="tier-name">' + escapeHtml(tier.roleName) + '</p>';
         html += '<p class="server-name">' + escapeHtml(tier.serverName) + '</p>';
         html += '<a class="subscribe-btn" href="/auth/discord?slug=' + encodeURIComponent(slug) + '">Subscribe with Discord</a>';
