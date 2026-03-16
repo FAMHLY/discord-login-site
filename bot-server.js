@@ -530,9 +530,31 @@ async function requestMembershipLink(action, interactionOrUser, priceId = null, 
 
         if (action === 'subscribe') {
             const roleText = roleName ? ` for **${roleName}**` : '';
+
+            // Check if a vanity slug exists for this tier
+            let vanityUrl = null;
+            if (supabase && priceId && guild) {
+                try {
+                    const { data: roleData } = await supabase
+                        .from('server_roles')
+                        .select('slug')
+                        .eq('discord_server_id', guild.id)
+                        .eq('stripe_price_id', priceId)
+                        .maybeSingle();
+
+                    if (roleData?.slug) {
+                        const siteUrl = process.env.PUBLIC_SITE_URL || 'https://clickablel.ink';
+                        vanityUrl = `${siteUrl}/${roleData.slug}`;
+                    }
+                } catch (slugError) {
+                    console.warn('Could not look up vanity slug:', slugError.message);
+                }
+            }
+
+            const linkUrl = vanityUrl || response.data.url;
             return {
                 success: true,
-                content: `🔗 Subscribe${roleText} here: ${response.data.url}`
+                content: `🔗 Subscribe${roleText} here: ${linkUrl}`
             };
         }
 

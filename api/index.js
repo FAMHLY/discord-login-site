@@ -323,19 +323,28 @@ app.get('/test-session', async (req, res) => {
 
 app.get('/auth/discord', async (req, res) => {
   const baseUrl = process.env.SUPABASE_URL; // Already includes https://
-  
+
   console.log('=== Discord OAuth Debug ===');
   console.log('VERCEL_URL:', process.env.VERCEL_URL);
   console.log('Request host:', req.headers.host);
   console.log('X-Forwarded-Host:', req.headers['x-forwarded-host']);
   console.log('X-Forwarded-Proto:', req.headers['x-forwarded-proto']);
-  console.log('All headers:', req.headers);
-  
-  // Force use of the actual Vercel domain
+
+  // If a slug is provided, store it in a cookie to carry through OAuth
+  if (req.query.slug) {
+    res.cookie('pending_slug', req.query.slug, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'lax',
+      maxAge: 10 * 60 * 1000 // 10 minutes
+    });
+    console.log('Stored pending_slug cookie:', req.query.slug);
+  }
+
+  const siteUrl = process.env.PUBLIC_SITE_URL || 'https://discord-login-site.vercel.app';
+
   let redirectTo;
-  
-  // Use Supabase callback URL - Supabase will handle the OAuth and redirect to our site
-  redirectTo = encodeURIComponent('https://discord-login-site.vercel.app/dashboard.html');
+  redirectTo = encodeURIComponent(`${siteUrl}/dashboard.html`);
   console.log('Using Supabase callback flow with dashboard redirect');
   
   // Original logic (commented out for testing)
@@ -478,8 +487,17 @@ app.get('/auth/callback', async (req, res) => {
     });
     
     if (session) {
-      console.log('Session created successfully, redirecting to dashboard');
-      res.redirect('/dashboard.html');
+      console.log('Session created successfully');
+      // Check for pending_slug cookie — redirect to checkout if present
+      const pendingSlug = req.cookies.pending_slug;
+      if (pendingSlug) {
+        console.log('Pending slug found, redirecting to /checkout/' + pendingSlug);
+        res.clearCookie('pending_slug');
+        res.redirect(`/checkout/${encodeURIComponent(pendingSlug)}`);
+      } else {
+        console.log('No pending slug, redirecting to dashboard');
+        res.redirect('/dashboard.html');
+      }
     } else {
       console.log('No session found after callback, redirecting to home');
       res.redirect('/?error=no_session');
@@ -1512,6 +1530,38 @@ app.get('/api/servers/:serverId/stats', async (req, res) => {
 
 // Dashboard authentication is handled by the route itself
 
+// Vanity slug route — serves subscribe.html for valid slugs
+app.get('/:slug', async (req, res, next) => {
+  const { slug } = req.params;
+
+  // Skip static files, known routes, and paths with dots
+  if (slug.includes('.') || ['auth', 'api', 'invite', 'dashboard', 'logout', 'get-user', 'test', 'test-callback', 'test-any', 'test-discord', 'test-session', 'checkout', 'success'].includes(slug)) {
+    return next();
+  }
+
+  if (!supabaseServiceClient) {
+    return next();
+  }
+
+  try {
+    const { data: role, error } = await supabaseServiceClient
+      .from('server_roles')
+      .select('slug')
+      .eq('slug', slug)
+      .maybeSingle();
+
+    if (error || !role) {
+      return next(); // Not a valid slug, fall through
+    }
+
+    // Valid slug — serve the subscribe landing page
+    res.sendFile(path.join(__dirname, '..', 'public', 'subscribe.html'));
+  } catch (err) {
+    console.error('Error in /:slug route:', err);
+    next();
+  }
+});
+
 // Catch-all route for any other OAuth callbacks
 app.get('*', (req, res, next) => {
   console.log('=== Catch-all route hit ===');
@@ -1742,6 +1792,142 @@ app.get('/invite/:inviteCode', async (req, res) => {
         </body>
       </html>
     `);
+  }
+});
+
+// ===== VANITY URL / SLUG ENDPOINTS =====
+
+// Public endpoint: get tier info by slug (no auth required)
+app.get('/api/tier/:slug', async (req, res) => {
+  const { slug } = req.params;
+  console.log(`=== /api/tier/${slug} endpoint called ===`);
+
+  if (!supabaseServiceClient) {
+    return res.status(500).json({ error: 'Database not available' });
+  }
+
+  try {
+    const { data: role, error } = await supabaseServiceClient
+      .from('server_roles')
+      .select('slug, role_name, discord_server_id, stripe_price_id')
+      .eq('slug', slug)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Error looking up slug:', error);
+      return res.status(500).json({ error: 'Database error' });
+    }
+
+    if (!role) {
+      return res.status(404).json({ error: 'Tier not found' });
+    }
+
+    // Get server info
+    const { data: server, error: serverError } = await supabaseServiceClient
+      .from('discord_servers')
+      .select('server_name, server_icon, discord_server_id')
+      .eq('discord_server_id', role.discord_server_id)
+      .limit(1)
+      .maybeSingle();
+
+    if (serverError) {
+      console.error('Error looking up server:', serverError);
+    }
+
+    res.json({
+      slug: role.slug,
+      roleName: role.role_name,
+      serverName: server?.server_name || 'Discord Server',
+      serverIcon: server?.server_icon || null,
+      serverId: role.discord_server_id
+    });
+  } catch (err) {
+    console.error('Error in /api/tier/:slug:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Checkout route: creates Stripe session from slug after OAuth
+app.get('/checkout/:slug', async (req, res) => {
+  const { slug } = req.params;
+  console.log(`=== /checkout/${slug} endpoint called ===`);
+
+  const supabase = createServerClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_ANON_KEY,
+    {
+      cookies: {
+        get: (name) => req.cookies[name],
+        set: (name, value, options) => res.cookie(name, value, options),
+        remove: (name, options) => res.clearCookie(name, options),
+      },
+    }
+  );
+
+  // Verify user is authenticated
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError || !user) {
+    // Not logged in — redirect to OAuth with slug
+    return res.redirect(`/auth/discord?slug=${encodeURIComponent(slug)}`);
+  }
+
+  if (!supabaseServiceClient) {
+    return res.status(500).send('Database not available');
+  }
+
+  try {
+    // Look up slug
+    const { data: role, error: roleError } = await supabaseServiceClient
+      .from('server_roles')
+      .select('role_name, discord_server_id, stripe_price_id')
+      .eq('slug', slug)
+      .maybeSingle();
+
+    if (roleError || !role) {
+      return res.status(404).send('Tier not found');
+    }
+
+    // Get server name
+    const { data: server } = await supabaseServiceClient
+      .from('discord_servers')
+      .select('server_name')
+      .eq('discord_server_id', role.discord_server_id)
+      .limit(1)
+      .maybeSingle();
+
+    const discordUserId = user.user_metadata?.provider_id;
+    const discordUsername = user.user_metadata?.full_name || user.email || 'Unknown';
+
+    if (!discordUserId) {
+      return res.status(400).send('Discord user ID not found. Please re-authenticate.');
+    }
+
+    const siteUrl = process.env.PUBLIC_SITE_URL || `${req.protocol}://${req.get('host')}`;
+
+    const checkoutResult = await createMemberCheckoutSession({
+      discordUserId,
+      discordUsername,
+      serverId: role.discord_server_id,
+      serverName: server?.server_name || 'Discord Server',
+      priceId: role.stripe_price_id,
+      roleName: role.role_name,
+      successUrl: `${siteUrl}/success.html?slug=${encodeURIComponent(slug)}`,
+      cancelUrl: `${siteUrl}/${encodeURIComponent(slug)}`
+    });
+
+    if (!checkoutResult.success) {
+      console.error('Checkout session creation failed:', checkoutResult.error);
+      return res.status(500).send('Failed to create checkout session');
+    }
+
+    // Clear the pending_slug cookie
+    res.clearCookie('pending_slug');
+
+    // Redirect to Stripe checkout
+    res.redirect(checkoutResult.url);
+  } catch (err) {
+    console.error('Error in /checkout/:slug:', err);
+    res.status(500).send('Internal server error');
   }
 });
 

@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Subscription Successful</title>
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    .success-card {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      border-radius: 16px;
+      padding: 40px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+      max-width: 480px;
+      width: 100%;
+      text-align: center;
+    }
+    .success-icon {
+      font-size: 3rem;
+      margin-bottom: 16px;
+    }
+    .success-card h1 {
+      font-size: 2rem;
+      margin-bottom: 12px;
+    }
+    .success-card p {
+      color: rgba(255, 255, 255, 0.85);
+      font-size: 1.1rem;
+      margin: 0 0 24px 0;
+      line-height: 1.5;
+    }
+    .success-links {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      align-items: center;
+    }
+    .success-links a {
+      display: inline-block;
+      padding: 12px 28px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-size: 15px;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      min-width: 220px;
+    }
+    .btn-discord-join {
+      background-color: #43b581;
+      color: white;
+      box-shadow: 0 4px 15px rgba(67, 181, 129, 0.3);
+    }
+    .btn-discord-join:hover {
+      background-color: #3aa374;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(67, 181, 129, 0.4);
+    }
+    .btn-dashboard {
+      background-color: rgba(255, 255, 255, 0.2);
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+    .btn-dashboard:hover {
+      background-color: rgba(255, 255, 255, 0.3);
+      border-color: rgba(255, 255, 255, 0.5);
+    }
+    @media (max-width: 768px) {
+      .success-card {
+        padding: 24px 20px;
+        margin: 0 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="success-card" id="success-card">
+      <div class="success-icon">&#10003;</div>
+      <h1>You're Subscribed!</h1>
+      <p>Your subscription is active. Your Discord role will be assigned shortly.</p>
+      <div class="success-links">
+        <a href="/dashboard" class="btn-dashboard">Go to Dashboard</a>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
